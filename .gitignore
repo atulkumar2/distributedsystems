@@ -1,0 +1,41 @@
+# Compiled Java class files
+*.class
+
+# Maven build output
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# IDE — IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE — Eclipse
+.classpath
+.project
+.settings/
+.factorypath
+bin/
+
+# IDE — VS Code (keep .vscode/settings.json, exclude generated caches)
+.vscode/*.log
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Maven wrapper binary (downloaded on demand, not committed)
+.mvn/wrapper/maven-wrapper.jar
+
+# Log files
+*.log
+
+# Environment / secrets — never commit
+.env
+.env.*

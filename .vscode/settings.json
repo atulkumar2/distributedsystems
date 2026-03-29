@@ -1,0 +1,21 @@
+{
+  "snyk.advanced.autoSelectOrganization": true,
+
+  // Java source compatibility
+  "java.configuration.runtimes": [
+    { "name": "JavaSE-17", "default": true }
+  ],
+  "java.compile.nullAnalysis.mode": "automatic",
+
+  // Maven
+  "maven.executable.preferMavenWrapper": true,
+  "java.configuration.maven.userSettings": null,
+
+  // Spell checker — load project word list automatically
+  "cSpell.import": ["./cspell.json"],
+
+  // Hide generated build output from explorer
+  "files.exclude": {
+    "target/": true
+  }
+}
