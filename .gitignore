@@ -35,6 +35,7 @@ Thumbs.db
 
 # Log files
 *.log
+logs/
 
 # Environment / secrets — never commit
 .env

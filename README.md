@@ -10,6 +10,8 @@ A minimal but practical hands-on project to learn Java to Kafka integration usin
 - `vehicleId` as Kafka message key
 - Standard consumer read/print loop
 - Manual offset commit consumer
+- Broker endpoint from config file (`src/main/resources/kafka.properties`)
+- Kafka UI dashboard via Docker Compose
 - Practical comments in code explaining why key settings matter
 
 ## Project structure
@@ -40,27 +42,32 @@ vehicle-telemetry-kafka/
 - Maven 3.8+
 - Apache Kafka running locally on `localhost:9092`
 
-## Run Kafka locally
+## Run Kafka locally with Docker Compose
 
-Use Docker (KRaft mode) for quickest local setup:
+The `docker-compose.yml` starts both Kafka (KRaft, single node) and the
+[Kafka UI dashboard](https://github.com/provectus/kafka-ui) with one command:
 
 ```bash
-docker run -d --name kafka-local \
-  -p 9092:9092 \
-  -e KAFKA_NODE_ID=1 \
-  -e KAFKA_PROCESS_ROLES=broker,controller \
-  -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
-  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
-  -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
-  -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
-  -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
-  -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
-  -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
-  -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
-  apache/kafka:3.8.0
+docker compose up -d
 ```
 
+This starts:
+- **Kafka** on `localhost:9092` (for the Java app on your host)
+- **Kafka UI** at http://localhost:8080 — browse topics, partitions, offsets,
+  consumer groups, and live messages in a web browser
+
+Stop everything:
+
+```bash
+docker compose down
+```
+
+> **Note:** if you already have a `kafka-local` container running from a
+> previous `docker run`, remove it first: `docker rm -f kafka-local`
+
 ## Create the topic
+
+Wait for the broker to be healthy, then:
 
 ```bash
 docker exec -it kafka-local /opt/kafka/bin/kafka-topics.sh \
@@ -71,6 +78,8 @@ docker exec -it kafka-local /opt/kafka/bin/kafka-topics.sh \
   --replication-factor 1
 ```
 
+Or create the topic directly in **Kafka UI → Topics → Add a Topic**.
+
 Check topic details:
 
 ```bash
@@ -79,6 +88,19 @@ docker exec -it kafka-local /opt/kafka/bin/kafka-topics.sh \
   --topic vehicle-telemetry \
   --bootstrap-server localhost:9092
 ```
+
+## Kafka UI
+
+Open http://localhost:8080 once the stack is up.
+
+Useful views for this project:
+
+| UI section | What to look at |
+|---|---|
+| Topics → vehicle-telemetry | Partition count, message count per partition |
+| Topics → vehicle-telemetry → Messages | Live messages with key, value, partition, offset |
+| Consumers | `vehicle-telemetry-group` lag per partition |
+| Brokers | Cluster health, partition leadership |
 
 ## Compile the project
 

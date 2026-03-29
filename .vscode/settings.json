@@ -11,9 +11,6 @@
   "maven.executable.preferMavenWrapper": true,
   "java.configuration.maven.userSettings": null,
 
-  // Spell checker — load project word list automatically
-  "cSpell.import": ["./cspell.json"],
-
   // Hide generated build output from explorer
   "files.exclude": {
     "target/": true

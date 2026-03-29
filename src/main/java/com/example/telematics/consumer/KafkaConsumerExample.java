@@ -1,5 +1,8 @@
 package com.example.telematics.consumer;
 
+import com.example.telematics.util.KafkaConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -11,13 +14,14 @@ import java.util.Collections;
 import java.util.Properties;
 
 public class KafkaConsumerExample {
+    private static final Logger log = LoggerFactory.getLogger(KafkaConsumerExample.class);
     private static final String TOPIC = "vehicle-telemetry";
 
     public static void main(String[] args) {
         Properties properties = new Properties();
 
-        // Kafka broker endpoint for local development.
-        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        // Broker endpoint comes from config file so local port can be changed without code edits.
+        properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaConfig.getBootstrapServers());
         // Consumer group means one logical application with one shared offset state.
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "vehicle-telemetry-group");
         // Deserializers read key/value bytes back into Java String objects.
@@ -28,20 +32,15 @@ public class KafkaConsumerExample {
 
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties)) {
             consumer.subscribe(Collections.singletonList(TOPIC));
-            System.out.println("Consumer subscribed to topic '" + TOPIC + "'. Press Ctrl+C to stop.");
+            log.info("Consumer subscribed to topic '{}'. Press Ctrl+C to stop.", TOPIC);
 
             while (true) {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
 
                 for (ConsumerRecord<String, String> record : records) {
                     // Same key (vehicleId) tends to stay in one partition, preserving per-vehicle order.
-                    System.out.printf(
-                            "Received key=%s value=%s partition=%d offset=%d%n",
-                            record.key(),
-                            record.value(),
-                            record.partition(),
-                            record.offset()
-                    );
+                    log.info("Received key={} value={} partition={} offset={}",
+                            record.key(), record.value(), record.partition(), record.offset());
                 }
             }
         }

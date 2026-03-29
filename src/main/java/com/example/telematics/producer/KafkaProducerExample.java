@@ -2,6 +2,9 @@ package com.example.telematics.producer;
 
 import com.example.telematics.model.TelemetryEvent;
 import com.example.telematics.util.JsonUtil;
+import com.example.telematics.util.KafkaConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -16,13 +19,14 @@ import java.util.Properties;
 import java.util.Random;
 
 public class KafkaProducerExample {
+    private static final Logger log = LoggerFactory.getLogger(KafkaProducerExample.class);
     private static final String TOPIC = "vehicle-telemetry";
 
     public static void main(String[] args) {
         Properties properties = new Properties();
 
-        // Kafka broker endpoint for local development.
-        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        // Broker endpoint comes from config file so local port can be changed without code edits.
+        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaConfig.getBootstrapServers());
         // Key serializer is String because we use vehicleId as the message key.
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         // Value serializer is String because payload is JSON text.
@@ -47,15 +51,10 @@ public class KafkaProducerExample {
 
                 Callback callback = (RecordMetadata metadata, Exception exception) -> {
                     if (exception != null) {
-                        System.err.println("Send failed for key=" + key + ": " + exception.getMessage());
+                        log.error("Send failed for key={}: {}", key, exception.getMessage());
                     } else {
-                        System.out.printf(
-                                "Sent key=%s to topic=%s partition=%d offset=%d%n",
-                                key,
-                                metadata.topic(),
-                                metadata.partition(),
-                                metadata.offset()
-                        );
+                        log.info("Sent key={} to topic={} partition={} offset={}",
+                                key, metadata.topic(), metadata.partition(), metadata.offset());
                     }
                 };
 
@@ -63,7 +62,7 @@ public class KafkaProducerExample {
             }
 
             producer.flush();
-            System.out.println("Producer finished sending telemetry events.");
+            log.info("Producer finished sending telemetry events.");
         }
 
         // Kafka helps IoT/microservices by decoupling data producers from multiple downstream consumers.
