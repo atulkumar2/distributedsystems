@@ -52,8 +52,9 @@ docker compose up -d
 ```
 
 This starts:
+
 - **Kafka** on `localhost:9092` (for the Java app on your host)
-- **Kafka UI** at http://localhost:8080 — browse topics, partitions, offsets,
+- **Kafka UI** at [http://localhost:8080](http://localhost:8080) — browse topics, partitions, offsets,
   consumer groups, and live messages in a web browser
 
 Stop everything:

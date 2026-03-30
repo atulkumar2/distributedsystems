@@ -16,7 +16,7 @@ BROKER="localhost:9092"
 
 # ── 1. Preflight checks ───────────────────────────────────────────────────────
 command -v docker  > /dev/null 2>&1 || error "Docker is not installed or not on PATH."
-command -v mvn     > /dev/null 2>&1 || error "Maven (mvn) is not installed or not on PATH."
+[[ -x "$SCRIPT_DIR/mvnw" ]]         || error "Maven wrapper (mvnw) not found in project root."
 docker info        > /dev/null 2>&1 || error "Docker daemon is not running."
 
 # ── 2. Start Docker Compose stack ─────────────────────────────────────────────
@@ -56,7 +56,8 @@ fi
 
 # ── 5. Compile Java project ───────────────────────────────────────────────────
 info "Compiling Java project..."
-mvn -q -f "$SCRIPT_DIR/pom.xml" clean compile
+# Use the project wrapper (mvnw) so the correct Maven version is always used.
+"$SCRIPT_DIR/mvnw" -q -f "$SCRIPT_DIR/pom.xml" clean compile
 success "Project compiled."
 
 # ── 6. Ready summary ──────────────────────────────────────────────────────────
