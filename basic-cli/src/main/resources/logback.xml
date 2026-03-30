@@ -1,0 +1,70 @@
+<configuration>
+
+    <!-- ── Console appender: always show logs on terminal ─────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{20} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Producer file appender ─────────────────────────────────────────── -->
+    <appender name="FILE_PRODUCER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/producer.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/producer.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Consumer file appender ─────────────────────────────────────────── -->
+    <appender name="FILE_CONSUMER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/consumer.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/consumer.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Telemetry catch-all file appender ──────────────────────────────── -->
+    <!-- Receives anything not handled by the producer/consumer loggers above  -->
+    <appender name="FILE_TELEMETRY" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/telemetry.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/telemetry.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Producer package → producer.log + console only ────────────────── -->
+    <!-- additivity="false" prevents these from also flowing into telemetry.log -->
+    <logger name="com.example.telematics.producer" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_PRODUCER"/>
+    </logger>
+
+    <!-- ── Consumer package → consumer.log + console only ────────────────── -->
+    <logger name="com.example.telematics.consumer" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_CONSUMER"/>
+    </logger>
+
+    <!-- ── Reduce noise from Kafka internal client logs ──────────────────── -->
+    <!-- Kafka client logs at DEBUG/TRACE level heavily during normal operation -->
+    <logger name="org.apache.kafka" level="WARN"/>
+
+    <!-- ── Root logger: everything else goes to telemetry.log + console ──── -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_TELEMETRY"/>
+    </root>
+
+</configuration>

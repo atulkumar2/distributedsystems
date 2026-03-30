@@ -51,6 +51,7 @@
     "StringSerializer",
     "telematics",
     "telemetry",
+    "temurin",
     "vehicleid",
     "vehicleId",
     "zookeeper",
