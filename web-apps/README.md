@@ -2,7 +2,7 @@
 
 Two Spring Boot apps wired to Kafka: a producer UI where you send telemetry events from your browser and a consumer UI where you watch them arrive in real-time.
 
-```
+```text
 producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
    :8081                                            :8082
 ```
@@ -15,9 +15,9 @@ docker compose up --build
 
 | URL | What you see |
 |---|---|
-| http://localhost:8081 | Producer — compose and send telemetry events |
-| http://localhost:8082 | Consumer — live stream of incoming events |
-| http://localhost:8080 | Kafka UI — explore topics, partitions, offsets |
+| [http://localhost:8081](http://localhost:8081) | Producer — compose and send telemetry events |
+| [http://localhost:8082](http://localhost:8082) | Consumer — live stream of incoming events |
+| [http://localhost:8080](http://localhost:8080) | Kafka UI — explore topics, partitions, offsets |
 
 The topic `vehicle-telemetry` is created automatically on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE=true`).
 
@@ -64,7 +64,7 @@ cd consumer-app && mvn spring-boot:run
 
 ## Project structure
 
-```
+```text
 web-app-setup/
 ├── docker-compose.yml       orchestrates Kafka + both apps
 ├── producer-app/
