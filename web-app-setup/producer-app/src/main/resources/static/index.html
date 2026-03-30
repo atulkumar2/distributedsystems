@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telemetry Producer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, select { width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid #334155;
+      border-radius: 0.375rem; color: #e2e8f0; font-size: 0.875rem; }
+    input:focus, select:focus { outline: none; border-color: #38bdf8; }
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    button { padding: 0.5rem 1.25rem; border-radius: 0.375rem; font-size: 0.875rem;
+      font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s; }
+    button:hover { opacity: 0.85; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-secondary { background: #334155; color: #cbd5e1; }
+    .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #22c55e; color: #fff;
+      padding: 0.75rem 1.25rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast.error { background: #ef4444; }
+    .toast.show { opacity: 1; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { text-align: left; padding: 0.5rem 0.75rem; color: #64748b; font-weight: 600;
+      border-bottom: 1px solid #334155; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 9999px; font-size: 0.7rem;
+      font-weight: 700; }
+    .badge-on { background: #14532d; color: #4ade80; }
+    .badge-idle { background: #1e3a5f; color: #60a5fa; }
+    .empty { color: #475569; text-align: center; padding: 2rem; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+
+  <h1>🚗 Telemetry Producer</h1>
+  <p class="subtitle">Send vehicle telemetry events to Kafka &rarr; topic: <code>vehicle-telemetry</code></p>
+
+  <div class="card">
+    <h2>Compose Event</h2>
+    <div class="grid">
+      <div>
+        <label for="vehicleId">Vehicle ID</label>
+        <select id="vehicleId">
+          <option>VH-1001</option><option>VH-1002</option><option>VH-1003</option>
+          <option>VH-1004</option><option>VH-1005</option>
+        </select>
+      </div>
+      <div>
+        <label for="engineStatus">Engine Status</label>
+        <select id="engineStatus">
+          <option value="ON">ON</option>
+          <option value="IDLE">IDLE</option>
+          <option value="OFF">OFF</option>
+        </select>
+      </div>
+      <div>
+        <label for="speed">Speed (km/h)</label>
+        <input type="number" id="speed" value="65" min="0" max="200" step="0.1">
+      </div>
+      <div>
+        <label for="fuelLevel">Fuel Level (%)</label>
+        <input type="number" id="fuelLevel" value="72" min="0" max="100" step="0.1">
+      </div>
+      <div>
+        <label for="latitude">Latitude</label>
+        <input type="number" id="latitude" value="12.9716" step="0.0001">
+      </div>
+      <div>
+        <label for="longitude">Longitude</label>
+        <input type="number" id="longitude" value="77.5946" step="0.0001">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="sendEvent()">Send Event</button>
+      <button class="btn-secondary" onclick="sendRandom()">&#x1F3B2; Randomise &amp; Send</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sent Events (<span id="count">0</span>)</h2>
+    <div id="tableWrap">
+      <p class="empty" id="empty">No events sent yet.</p>
+      <table id="eventTable" style="display:none">
+        <thead><tr><th>Vehicle</th><th>Speed</th><th>Fuel</th><th>Engine</th><th>Timestamp</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let count = 0;
+
+    function val(id) { return document.getElementById(id).value; }
+
+    async function sendEvent() {
+      const event = {
+        vehicleId: val('vehicleId'),
+        latitude: parseFloat(val('latitude')),
+        longitude: parseFloat(val('longitude')),
+        speed: parseFloat(val('speed')),
+        fuelLevel: parseFloat(val('fuelLevel')),
+        engineStatus: val('engineStatus')
+      };
+      try {
+        const res = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(event)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        addRow({ ...event, timestamp: data.timestamp });
+        showToast('Sent ' + event.vehicleId);
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    async function sendRandom() {
+      try {
+        const res = await fetch('/api/events/random', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const event = await res.json();
+        addRow(event);
+        showToast('Sent ' + event.vehicleId);
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    function addRow(ev) {
+      count++;
+      document.getElementById('count').textContent = count;
+      document.getElementById('empty').style.display = 'none';
+      document.getElementById('eventTable').style.display = 'table';
+      const tbody = document.getElementById('tbody');
+      const badge = ev.engineStatus === 'ON' ? 'badge-on' : 'badge-idle';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${ev.vehicleId}</strong></td>
+        <td>${ev.speed.toFixed(1)} km/h</td>
+        <td>${ev.fuelLevel.toFixed(1)}%</td>
+        <td><span class="badge ${badge}">${ev.engineStatus}</span></td>
+        <td>${new Date(ev.timestamp).toLocaleTimeString()}</td>`;
+      tbody.insertBefore(tr, tbody.firstChild);
+      if (tbody.rows.length > 50) tbody.deleteRow(tbody.rows.length - 1);
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast' + (isError ? ' error' : '') + ' show';
+      setTimeout(() => t.className = 'toast', 2500);
+    }
+  </script>
+</body>
+</html>
