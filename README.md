@@ -11,3 +11,4 @@ Two self-contained setups for learning Java + Apache Kafka integration using an 
 
 - Docker & Docker Compose (both setups use Compose to start Kafka)
 - Java 25+
+- Maven wrapper included in each setup — no separate Maven installation needed (runs Maven 4.0.0 via `./mvnw`)
