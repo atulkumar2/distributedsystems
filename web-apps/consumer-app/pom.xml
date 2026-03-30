@@ -5,20 +5,14 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.4</version>
-        <relativePath/>
+        <groupId>com.example</groupId>
+        <artifactId>telematics-web</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.example</groupId>
     <artifactId>consumer-app</artifactId>
-    <version>1.0.0</version>
     <name>Telemetry Consumer Web App</name>
-
-    <properties>
-        <java.version>25</java.version>
-    </properties>
 
     <dependencies>
         <dependency>

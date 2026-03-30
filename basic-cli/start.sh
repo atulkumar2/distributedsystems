@@ -21,6 +21,17 @@ docker info        > /dev/null 2>&1 || error "Docker daemon is not running."
 
 # ── 2. Start Docker Compose stack ─────────────────────────────────────────────
 info "Starting Kafka + Kafka UI via Docker Compose..."
+# If a container with the same name exists from a different project (stale / orphaned),
+# remove it first so docker compose can recreate it cleanly.
+for cname in kafka-local kafka-ui; do
+  if docker inspect "$cname" > /dev/null 2>&1; then
+    proj=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$cname" 2>/dev/null || true)
+    if [[ "$proj" != "$SCRIPT_DIR" ]]; then
+      warn "Removing stale container '$cname' (from a different project)..."
+      docker rm -f "$cname" > /dev/null
+    fi
+  fi
+done
 docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
 
 # ── 3. Wait for Kafka broker to accept connections ────────────────────────────

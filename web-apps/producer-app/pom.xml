@@ -5,22 +5,22 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.4</version>
-        <relativePath/>
+        <groupId>com.example</groupId>
+        <artifactId>telematics-web</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.example</groupId>
     <artifactId>producer-app</artifactId>
-    <version>1.0.0</version>
     <name>Telemetry Producer Web App</name>
 
-    <properties>
-        <java.version>25</java.version>
-    </properties>
-
     <dependencies>
+        <!-- Shared model: TelemetryEvent POJO used for serialisation and REST binding -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>telemetry-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

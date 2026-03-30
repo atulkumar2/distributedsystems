@@ -1,5 +1,6 @@
 package com.example.telematics.producer;
 
+import com.example.telematics.model.TelemetryEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;

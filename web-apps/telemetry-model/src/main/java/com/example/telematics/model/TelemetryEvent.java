@@ -1,4 +1,4 @@
-package com.example.telematics.producer;
+package com.example.telematics.model;
 
 import java.time.Instant;
 import java.util.Random;

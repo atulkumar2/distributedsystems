@@ -1,5 +1,6 @@
 package com.example.telematics.producer;
 
+import com.example.telematics.model.TelemetryEvent;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

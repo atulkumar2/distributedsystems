@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Inherit Spring Boot's dependency management for all child modules -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>telematics-web</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>Telematics Web Apps (Parent)</name>
+
+    <properties>
+        <java.version>25</java.version>
+    </properties>
+
+    <modules>
+        <!-- Build order: model first (no deps), then the apps that depend on it -->
+        <module>telemetry-model</module>
+        <module>producer-app</module>
+        <module>consumer-app</module>
+    </modules>
+</project>
