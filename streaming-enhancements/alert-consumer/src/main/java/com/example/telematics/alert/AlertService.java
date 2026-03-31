@@ -24,8 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,10 +57,26 @@ public class AlertService implements ApplicationRunner {
     // Active SSE connections from browsers
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
-    private final AtomicLong alertCount    = new AtomicLong(0);
-    private final AtomicLong warningCount  = new AtomicLong(0);
-    private final AtomicLong processedCount = new AtomicLong(0);
+    private final AtomicLong alertCount         = new AtomicLong(0);
+    private final AtomicLong warningCount       = new AtomicLong(0);
+    private final AtomicLong criticalCount      = new AtomicLong(0);
+    private final AtomicLong engineAnomalyCount = new AtomicLong(0);
+    private final AtomicLong suddenChangeCount  = new AtomicLong(0);
+    private final AtomicLong geofenceCount      = new AtomicLong(0);
+    private final AtomicLong processedCount     = new AtomicLong(0);
     private final Random random = new Random();
+
+    // Per-vehicle last-known speed for sudden-change detection across consecutive events.
+    // Written and read only by the single alert-kafka-poll thread, so a plain HashMap is fine.
+    private final Map<String, Double> lastSpeedByVehicle = new HashMap<>();
+
+    // ConcurrentHashMap — shared between the poll thread (writes) and the offline-watcher thread (reads).
+    // lastSeenMs: epoch-ms of the last event received per vehicle.
+    // offlineAlerted: vehicles for which we have already fired a vehicle-offline alert; cleared when
+    //                 the vehicle resumes sending so the alert can fire again if it goes silent again.
+    private final Map<String, Long> lastSeenMs     = new ConcurrentHashMap<>();
+    private final Set<String>       offlineAlerted = ConcurrentHashMap.newKeySet();
+    private final AtomicLong        offlineCount   = new AtomicLong(0);
 
     // ── ApplicationRunner — kick off the poll thread on startup ───────────────
 
@@ -66,6 +87,8 @@ public class AlertService implements ApplicationRunner {
         pollThread.start();
         log.info("Alert Kafka poll thread started — group={} topic={}",
                 AppConfig.GROUP_ALERT, AppConfig.TOPIC_TELEMETRY);
+
+        startOfflineWatcher();
     }
 
     // ── Kafka poll loop ───────────────────────────────────────────────────────
@@ -95,6 +118,10 @@ public class AlertService implements ApplicationRunner {
             TelemetryEvent event = JsonUtil.fromJson(record.value(), TelemetryEvent.class);
             String eventId = UUID.randomUUID().toString();
 
+            // Mark vehicle as alive; remove any pending offline alert so it can re-arm later.
+            lastSeenMs.put(event.getVehicleId(), System.currentTimeMillis());
+            offlineAlerted.remove(event.getVehicleId());
+
             log.info("[eventId={}][vehicleId={}][partition={}][offset={}] Evaluating speed={} fuel={}",
                     eventId, event.getVehicleId(), record.partition(), record.offset(),
                     event.getSpeed(), event.getFuelLevel());
@@ -116,44 +143,171 @@ public class AlertService implements ApplicationRunner {
                           int partition, long offset) {
         boolean anyAlert = false;
 
-        if (event.getSpeed() > AppConfig.SPEED_ALERT_THRESHOLD) {
+        // Retrieve-and-update last speed for this vehicle (null on first event).
+        // put() returns the old value atomically, giving us the previous reading.
+        Double lastSpeed = lastSpeedByVehicle.put(event.getVehicleId(), event.getSpeed());
+
+        // ── Rule 1 & 2: Overspeed (tiered) ────────────────────────────────────
+        if (event.getSpeed() > AppConfig.SPEED_FAILURE_THRESHOLD) {
+            // CRITICAL: above the DLQ failure threshold (120 km/h)
+            log.warn("CRITICAL: Critical overspeed vehicle={} speed={} [eventId={}][partition={}][offset={}]",
+                    event.getVehicleId(), event.getSpeed(), eventId, partition, offset);
+            criticalCount.incrementAndGet();
+            pushToSse("CRITICAL", "critical-speed", event, 0);
+            anyAlert = true;
+        } else if (event.getSpeed() > AppConfig.SPEED_ALERT_THRESHOLD) {
+            // ALERT: 100–120 km/h range
             log.warn("ALERT: Overspeed vehicle={} speed={} [eventId={}][partition={}][offset={}]",
                     event.getVehicleId(), event.getSpeed(), eventId, partition, offset);
             alertCount.incrementAndGet();
-            pushToSse("ALERT", event);
+            pushToSse("ALERT", "overspeed", event, 0);
             anyAlert = true;
         }
 
-        if (event.getFuelLevel() < AppConfig.FUEL_WARN_THRESHOLD) {
+        // ── Rule 3 & 4: Fuel level (tiered) ───────────────────────────────────
+        if (event.getFuelLevel() < AppConfig.FUEL_CRITICAL_THRESHOLD) {
+            // CRITICAL: < 10 % — imminent stall risk
+            log.warn("CRITICAL: Critical fuel vehicle={} fuel={}% [eventId={}][partition={}][offset={}]",
+                    event.getVehicleId(), event.getFuelLevel(), eventId, partition, offset);
+            criticalCount.incrementAndGet();
+            pushToSse("CRITICAL", "critical-fuel", event, 0);
+            anyAlert = true;
+        } else if (event.getFuelLevel() < AppConfig.FUEL_WARN_THRESHOLD) {
+            // WARNING: 10–20 %
             log.warn("WARNING: Low fuel vehicle={} fuel={}% [eventId={}][partition={}][offset={}]",
                     event.getVehicleId(), event.getFuelLevel(), eventId, partition, offset);
             warningCount.incrementAndGet();
-            pushToSse("WARNING", event);
+            pushToSse("WARNING", "low-fuel", event, 0);
+            anyAlert = true;
+        }
+
+        // ── Rule 5: Engine anomaly — vehicle moving with engine OFF or IDLE ───
+        if (event.getSpeed() > 5.0
+                && ("OFF".equals(event.getEngineStatus()) || "IDLE".equals(event.getEngineStatus()))) {
+            log.warn("WARNING: Engine anomaly vehicle={} speed={} engine={} [eventId={}]",
+                    event.getVehicleId(), event.getSpeed(), event.getEngineStatus(), eventId);
+            engineAnomalyCount.incrementAndGet();
+            pushToSse("WARNING", "engine-anomaly", event, 0);
+            anyAlert = true;
+        }
+
+        // ── Rule 6: Sudden speed change (delta across consecutive events) ─────
+        if (lastSpeed != null) {
+            double delta = event.getSpeed() - lastSpeed;
+            if (Math.abs(delta) > AppConfig.SPEED_SUDDEN_CHANGE_KMH) {
+                String dir = delta > 0 ? "acceleration" : "deceleration";
+                log.warn("WARNING: Sudden {} vehicle={} delta={}km/h [eventId={}]",
+                        dir, event.getVehicleId(), String.format("%.1f", delta), eventId);
+                suddenChangeCount.incrementAndGet();
+                pushToSse("WARNING", "sudden-change", event, delta);
+                anyAlert = true;
+            }
+        }
+
+        // ── Rule 7: Geofence — vehicle outside Bangalore bounding box ─────────
+        if (event.getLatitude()  < AppConfig.GEO_LAT_MIN || event.getLatitude()  > AppConfig.GEO_LAT_MAX
+                || event.getLongitude() < AppConfig.GEO_LNG_MIN || event.getLongitude() > AppConfig.GEO_LNG_MAX) {
+            log.warn("WARNING: Geofence breach vehicle={} lat={} lng={} [eventId={}]",
+                    event.getVehicleId(), event.getLatitude(), event.getLongitude(), eventId);
+            geofenceCount.incrementAndGet();
+            pushToSse("WARNING", "geofence", event, 0);
             anyAlert = true;
         }
 
         if (!anyAlert) {
-            log.debug("[eventId={}][vehicleId={}] No alerts — vehicle nominal.", eventId, event.getVehicleId());
-            pushToSse("OK", event);
+            log.debug("[eventId={}][vehicleId={}] Nominal — no alerts.", eventId, event.getVehicleId());
+            pushToSse("OK", "nominal", event, 0);
         }
+    }
+
+    // ── Offline vehicle watcher ───────────────────────────────────────────────
+
+    /**
+     * Schedules a background task that fires every 5 s and checks whether any
+     * previously-seen vehicle has gone silent.  Uses a single-thread daemon
+     * ScheduledExecutorService so it never blocks the Kafka poll thread.
+     */
+    private void startOfflineWatcher() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "alert-offline-watcher");
+            t.setDaemon(true);
+            return t;
+        });
+        // Initial delay of 15 s so we don't fire on startup before any events arrive.
+        scheduler.scheduleAtFixedRate(this::checkOfflineVehicles,
+                15, 5, TimeUnit.SECONDS);
+        log.info("Offline vehicle watcher scheduled — silence threshold={}s",
+                AppConfig.VEHICLE_OFFLINE_SECONDS);
+    }
+
+    /**
+     * Iterates all known vehicles and fires a one-shot vehicle-offline SSE
+     * for each one that has been silent longer than VEHICLE_OFFLINE_SECONDS.
+     * offlineAlerted.add() acts as a gate: it returns true only on the first
+     * call, preventing repeated alerts until the vehicle resumes (at which point
+     * handleRecord clears it from the set).
+     */
+    private void checkOfflineVehicles() {
+        long now = System.currentTimeMillis();
+        long thresholdMs = (long) AppConfig.VEHICLE_OFFLINE_SECONDS * 1000;
+        for (Map.Entry<String, Long> entry : lastSeenMs.entrySet()) {
+            String vehicleId = entry.getKey();
+            long silentMs = now - entry.getValue();
+            if (silentMs > thresholdMs && offlineAlerted.add(vehicleId)) {
+                log.warn("WARNING: Vehicle went offline vehicle={} silentFor={}s",
+                        vehicleId, silentMs / 1000);
+                offlineCount.incrementAndGet();
+                pushOfflineToSse(vehicleId, silentMs / 1000);
+            }
+        }
+    }
+
+    /** Pushes a vehicle-offline envelope to all SSE clients (no telemetry fields — vehicle is silent). */
+    private void pushOfflineToSse(String vehicleId, long silentSeconds) {
+        if (emitters.isEmpty()) return;
+        String payload;
+        try {
+            Map<String, Object> envelope = new HashMap<>();
+            envelope.put("type",          "WARNING");
+            envelope.put("rule",          "vehicle-offline");
+            envelope.put("vehicleId",     vehicleId);
+            envelope.put("silentSeconds", silentSeconds);
+            payload = JsonUtil.toJson(envelope);
+        } catch (Exception e) {
+            log.warn("Failed to serialise offline SSE payload: {}", e.getMessage());
+            return;
+        }
+        List<SseEmitter> dead = new ArrayList<>();
+        for (SseEmitter emitter : emitters) {
+            try {
+                emitter.send(SseEmitter.event().data(payload));
+            } catch (IOException e) {
+                dead.add(emitter);
+            }
+        }
+        emitters.removeAll(dead);
     }
 
     // ── SSE push ──────────────────────────────────────────────────────────────
 
     /**
-     * Pushes {"type":"ALERT|WARNING|OK","vehicleId":"...","speed":N,"fuelLevel":N}
-     * to all connected browser clients.
+     * Pushes a JSON alert envelope to all connected browser SSE clients.
+     * Fields: type, rule, vehicleId, speed, fuelLevel, engineStatus, timestamp,
+     *         and delta (only when non-zero, i.e. for sudden-change alerts).
      */
-    private void pushToSse(String type, TelemetryEvent event) {
+    private void pushToSse(String type, String rule, TelemetryEvent event, double delta) {
         if (emitters.isEmpty()) return;
         String payload;
         try {
             Map<String, Object> envelope = new HashMap<>();
-            envelope.put("type",      type);
-            envelope.put("vehicleId", event.getVehicleId());
-            envelope.put("speed",     event.getSpeed());
-            envelope.put("fuelLevel", event.getFuelLevel());
-            envelope.put("timestamp", event.getTimestamp());
+            envelope.put("type",         type);
+            envelope.put("rule",         rule);
+            envelope.put("vehicleId",    event.getVehicleId());
+            envelope.put("speed",        event.getSpeed());
+            envelope.put("fuelLevel",    event.getFuelLevel());
+            envelope.put("engineStatus", event.getEngineStatus());
+            envelope.put("timestamp",    event.getTimestamp());
+            if (delta != 0) envelope.put("delta", delta);
             payload = JsonUtil.toJson(envelope);
         } catch (Exception e) {
             log.warn("Failed to serialise SSE alert payload: {}", e.getMessage());
@@ -187,8 +341,9 @@ public class AlertService implements ApplicationRunner {
 
     private void logMetrics() {
         if (processedCount.get() % 10 == 0) {
-            log.info("[METRICS] processed={} alerts={} warnings={}",
-                    processedCount.get(), alertCount.get(), warningCount.get());
+            log.info("[METRICS] processed={} criticals={} alerts={} warnings={} engineAnomalies={} suddenChanges={} geofence={} offline={}",
+                    processedCount.get(), criticalCount.get(), alertCount.get(), warningCount.get(),
+                    engineAnomalyCount.get(), suddenChangeCount.get(), geofenceCount.get(), offlineCount.get());
         }
     }
 
@@ -196,9 +351,14 @@ public class AlertService implements ApplicationRunner {
 
     public Map<String, Object> getMetrics() {
         Map<String, Object> m = new HashMap<>();
-        m.put("processed", processedCount.get());
-        m.put("alerts",    alertCount.get());
-        m.put("warnings",  warningCount.get());
+        m.put("processed",       processedCount.get());
+        m.put("criticals",       criticalCount.get());
+        m.put("alerts",          alertCount.get());
+        m.put("warnings",        warningCount.get());
+        m.put("engineAnomalies", engineAnomalyCount.get());
+        m.put("suddenChanges",   suddenChangeCount.get());
+        m.put("geofence",        geofenceCount.get());
+        m.put("offline",         offlineCount.get());
         return m;
     }
 

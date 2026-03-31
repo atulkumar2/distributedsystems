@@ -59,6 +59,32 @@ public final class AppConfig {
     /** Fuel level (%) below which a WARNING is raised. */
     public static final double FUEL_WARN_THRESHOLD = 20.0;
 
+    /** Fuel level (%) below which a CRITICAL alert is raised (imminent stall risk). */
+    public static final double FUEL_CRITICAL_THRESHOLD = 10.0;
+
+    /**
+     * Speed delta (km/h) between two consecutive events for the same vehicle
+     * that signals a sudden-acceleration or sudden-braking event.
+     * VehicleSimulator's SUDDEN_BRAKE / SUDDEN_ACCELERATION states produce deltas in this range.
+     */
+    public static final double SPEED_SUDDEN_CHANGE_KMH = 40.0;
+
+    // ── Geofence (Bangalore bounding box — matches VehicleSimulator coordinate range) ────────────
+
+    /** Geographic bounding box for fleet geofence monitoring. */
+    public static final double GEO_LAT_MIN = 12.88;
+    public static final double GEO_LAT_MAX = 13.12;
+    public static final double GEO_LNG_MIN = 77.48;
+    public static final double GEO_LNG_MAX = 77.72;
+
+    // ── Vehicle offline detection ──────────────────────────────────────────────
+
+    /**
+     * Seconds of silence from a vehicle before it is considered offline.
+     * The watcher fires every 5 s, so effective detection latency is 10–15 s.
+     */
+    public static final int VEHICLE_OFFLINE_SECONDS = 10;
+
     // ── Retry ──────────────────────────────────────────────────────────────────
 
     /** Number of times to retry processing before sending an event to the DLQ. */

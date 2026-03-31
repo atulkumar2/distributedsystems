@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -18,9 +20,11 @@ import java.util.concurrent.TimeUnit;
 public class ProducerController {
 
     private final TelemetryProducer producer;
+    private final AlwaysOnPool alwaysOnPool;
 
-    public ProducerController(TelemetryProducer producer) {
-        this.producer = producer;
+    public ProducerController(TelemetryProducer producer, AlwaysOnPool alwaysOnPool) {
+        this.producer     = producer;
+        this.alwaysOnPool = alwaysOnPool;
     }
 
     /** Send a manually constructed event from the form. */
@@ -38,17 +42,29 @@ public class ProducerController {
         ));
     }
 
-    /** Returns the full list of known vehicle IDs (sourced from vehicles.txt). */
+    /**
+     * Returns vehicle IDs that are NOT reserved by the always-on pool.
+     * The compose form and burst send panels both use this list.
+     */
     @GetMapping("/api/vehicles")
     public ResponseEntity<List<String>> getVehicles() {
-        return ResponseEntity.ok(TelemetryEvent.getVehicleIds());
+        Set<String> reserved = alwaysOnPool.getReservedIds();
+        List<String> available = TelemetryEvent.getVehicleIds().stream()
+                .filter(id -> !reserved.contains(id))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(available);
     }
 
-    /** Generate and send a random event from the first vehicleCount vehicles (0 = all). */
+    /** Generate and send a random event from available (non-reserved) vehicles. */
     @PostMapping("/api/events/random")
-    public ResponseEntity<TelemetryEvent> sendRandom(
+    public ResponseEntity<?> sendRandom(
             @RequestParam(defaultValue = "0") int vehicleCount) {
-        TelemetryEvent event = TelemetryEvent.randomFrom(vehicleSubset(vehicleCount));
+        List<String> subset = vehicleSubset(vehicleCount);
+        if (subset.isEmpty()) {
+            return ResponseEntity.status(503)
+                    .body(Map.of("error", "No available vehicles — all reserved by always-on panel"));
+        }
+        TelemetryEvent event = TelemetryEvent.randomFrom(subset);
         producer.send(event);
         return ResponseEntity.ok(event);
     }
@@ -112,18 +128,67 @@ public class ProducerController {
         ));
     }
 
+    // ── Always-On Vehicle Pool endpoints ─────────────────────────────────────
+
     /**
-     * Returns a randomly-sampled subset of vehicleCount IDs drawn from the full list,
-     * or the full list when vehicleCount <= 0 or >= list size.
-     * Sampling without replacement ensures no duplicates in the active subset.
+     * Reserve and start {@code count} random available vehicles in the always-on pool.
+     * Returns the list of newly-activated vehicle IDs.
+     */
+    @PostMapping("/api/alwayson/activate")
+    public ResponseEntity<Map<String, Object>> activateVehicles(
+            @RequestParam(defaultValue = "5") int count) {
+        List<String> started = alwaysOnPool.activate(count);
+        return ResponseEntity.ok(Map.of(
+                "activated", started.size(),
+                "vehicles",  started
+        ));
+    }
+
+    /** Current status snapshot for all always-on vehicles. */
+    @GetMapping("/api/alwayson/status")
+    public ResponseEntity<Map<String, Object>> alwaysOnStatus() {
+        return ResponseEntity.ok(alwaysOnPool.getStatus());
+    }
+
+    /**
+     * Control a single always-on vehicle.
+     * {@code action}: pause | resume | freeze | unfreeze | kill | start
+     */
+    @PostMapping("/api/alwayson/{vehicleId}/control")
+    public ResponseEntity<Map<String, Object>> controlVehicle(
+            @PathVariable String vehicleId,
+            @RequestParam String action) {
+        boolean ok = alwaysOnPool.control(vehicleId, action);
+        if (!ok) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Vehicle not reserved in always-on pool: " + vehicleId));
+        }
+        return ResponseEntity.ok(Map.of("vehicleId", vehicleId, "action", action));
+    }
+
+    /** Kill all always-on vehicles and free their IDs back to other panels. */
+    @PostMapping("/api/alwayson/deactivate")
+    public ResponseEntity<Map<String, Object>> deactivateAll() {
+        alwaysOnPool.deactivateAll();
+        return ResponseEntity.ok(Map.of("status", "all deactivated"));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Returns a randomly-sampled subset of available (non-reserved) vehicle IDs.
+     * vehicleCount=0 means "all available". Sampling without replacement prevents duplicates.
      */
     private List<String> vehicleSubset(int vehicleCount) {
-        List<String> all = TelemetryEvent.getVehicleIds();
+        Set<String> reserved = alwaysOnPool.getReservedIds();
+        List<String> all = TelemetryEvent.getVehicleIds().stream()
+                .filter(id -> !reserved.contains(id))
+                .collect(Collectors.toList());
         if (vehicleCount <= 0 || vehicleCount >= all.size()) {
             return all;
         }
         List<String> shuffled = new ArrayList<>(all);
-        java.util.Collections.shuffle(shuffled);
+        Collections.shuffle(shuffled);
         return shuffled.subList(0, vehicleCount);
     }
 }
