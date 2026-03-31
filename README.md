@@ -4,8 +4,16 @@ Two self-contained setups for learning Java + Apache Kafka integration using an 
 
 | Setup | What it is |
 |---|---|
-| [basic-cli-setup/](basic-cli-setup/) | Plain Java CLI producer and consumer — minimal, no frameworks, great starting point |
-| [web-app-setup/](web-app-setup/) | Spring Boot web apps — generate events from a browser form, watch them appear live in another tab |
+| [basic-cli/](basic-cli/) | Plain Java CLI producer and consumer — minimal, no frameworks, great starting point |
+| [web-apps/](web-apps/) | Spring Boot web apps — generate events from a browser form, watch them appear live in another tab |
+
+Both setups can run **simultaneously** — they use different ports to avoid conflicts:
+
+| Service | `basic-cli/` | `web-apps/` |
+|---|---|---|
+| Kafka broker (host) | `9092` | `9093` |
+| Kafka UI | `8080` | `8083` |
+| Producer / Consumer | CLI only | `8081` / `8082` |
 
 ## Prerequisites
 
