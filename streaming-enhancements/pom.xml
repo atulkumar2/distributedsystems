@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Inherit Spring Boot's dependency management for all child modules -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>telematics-streaming</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>Telematics Streaming Enhancements (Parent)</name>
+
+    <properties>
+        <java.version>25</java.version>
+    </properties>
+
+    <!-- Build order matters: model → util → config → dlq-producer → consumers → UI apps -->
+    <modules>
+        <module>model</module>
+        <module>util</module>
+        <module>config</module>
+        <module>dlq-producer</module>
+        <module>storage-consumer</module>
+        <module>alert-consumer</module>
+        <module>producer-app</module>
+        <module>consumer-app</module>
+    </modules>
+</project>
