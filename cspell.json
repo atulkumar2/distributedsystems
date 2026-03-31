@@ -50,6 +50,7 @@
     "randomised",
     "RecordMetadata",
     "retries",
+    "setaf",
     "slf4j",
     "snappy",
     "StringDeserializer",

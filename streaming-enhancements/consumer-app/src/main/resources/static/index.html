@@ -10,8 +10,9 @@
     h1 { font-size: 1.5rem; font-weight: 700; color: #a78bfa; margin-bottom: 0.25rem; }
     .subtitle { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; }
     .card { background: #1e293b; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; margin-bottom: 1rem; }
     .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
-    .header-row h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
+    .header-row h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0; }
     .status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; font-weight: 600; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
     .dot.connected { background: #4ade80; box-shadow: 0 0 6px #4ade80; animation: pulse 2s infinite; }
@@ -36,6 +37,32 @@
     button { padding: 0.4rem 1rem; border-radius: 0.375rem; font-size: 0.8rem; font-weight: 600;
       cursor: pointer; border: 1px solid #334155; background: #1e293b; color: #94a3b8; }
     button:hover { background: #334155; color: #e2e8f0; }
+    .btn-primary { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary { background: #334155; color: #cbd5e1; border-color: #334155; }
+    /* ── Consumer config grid ── */
+    .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .cfg-grid label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.35rem; }
+    .cfg-grid input[type=range] { width: 100%; accent-color: #0ea5e9; padding: 0; border: none; background: transparent; }
+    .cfg-grid input[type=number] { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 0.375rem;
+      color: #e2e8f0; padding: 0.35rem 0.5rem; font-size: 0.85rem; }
+    .cfg-note { font-size: 0.72rem; color: #475569; margin-top: 0.75rem; }
+    .btn-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+    /* ── Worker status cards ── */
+    #workerCards { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+    .worker-card { background: #0f172a; border-radius: 0.5rem; padding: 0.75rem 1rem;
+      min-width: 170px; border-left: 3px solid #334155; font-size: 0.8rem; }
+    .worker-card .wid { font-weight: 700; color: #cbd5e1; margin-bottom: 0.3rem; }
+    .worker-card .wstate { font-size: 0.72rem; font-weight: 700; border-radius: 9999px;
+      padding: 0.1rem 0.5rem; display: inline-block; margin-bottom: 0.35rem; }
+    .state-running    { background: #14532d; color: #4ade80; }
+    .state-processing { background: #1e3a5f; color: #60a5fa; }
+    .state-idle       { background: #292524; color: #a8a29e; }
+    .state-starting   { background: #1c1917; color: #78716c; }
+    .state-restarting { background: #431407; color: #fb923c; }
+    .state-stopped    { background: #3b1515; color: #f87171; }
+    .crash-badge { font-size: 0.68rem; color: #fb923c; margin-left: 0.3rem; }
+    .wstat { color: #64748b; }
   </style>
 </head>
 <body>
@@ -43,6 +70,7 @@
   <h1>📡 Telemetry Consumer</h1>
   <p class="subtitle">Live events from Kafka &larr; topic: <code>vehicle-telemetry</code></p>
 
+  <!-- ── Stats ──────────────────────────────────────────────────────── -->
   <div class="card">
     <div class="stats">
       <div class="stat"><div class="stat-value" id="totalCount">0</div><div class="stat-label">Total Events</div></div>
@@ -51,6 +79,59 @@
     </div>
   </div>
 
+  <!-- ── Consumer Thread Controls ───────────────────────────────────── -->
+  <div class="card">
+    <h2>Consumer Threads</h2>
+    <div class="cfg-grid">
+
+      <div>
+        <label>Threads: <strong id="cfgThreadsDisplay">1</strong></label>
+        <input type="range" id="cfgThreads" min="1" max="10" value="1"
+               oninput="document.getElementById('cfgThreadsDisplay').textContent=this.value;
+                        updateCrashMax()">
+      </div>
+
+      <div>
+        <label>Processing delay: <strong id="cfgDelayDisplay">0</strong> ms / message</label>
+        <input type="range" id="cfgDelay" min="0" max="3000" value="0" step="50"
+               oninput="document.getElementById('cfgDelayDisplay').textContent=this.value">
+      </div>
+
+      <div>
+        <label>Crashing threads: <strong id="cfgCrashCountDisplay">0</strong>
+          <span id="crashOffNote" style="color:#475569"> — enable crash mode first</span>
+        </label>
+        <input type="range" id="cfgCrashCount" min="0" max="1" value="0"
+               disabled
+               oninput="document.getElementById('cfgCrashCountDisplay').textContent=this.value">
+      </div>
+
+      <div style="display:flex;align-items:center;gap:0.6rem;padding-top:1.2rem">
+        <input type="checkbox" id="crashEnabled" style="width:auto;accent-color:#fb923c"
+               onchange="toggleCrashControls()">
+        <label for="crashEnabled" style="cursor:pointer;margin:0">
+          Crash simulation &mdash; designated threads throw and restart
+        </label>
+      </div>
+
+    </div>
+
+    <p class="cfg-note">
+      ⓘ Topic has <strong>3 partitions</strong> — threads beyond that number will stay
+      <em>IDLE</em> (no partition assigned). Crash simulation triggers a consumer group
+      <em>rebalance</em>: surviving threads pick up the abandoned partitions.
+    </p>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="applyConsumerConfig()">Apply</button>
+      <button class="btn-secondary" onclick="resetConsumerConfig()">Reset</button>
+    </div>
+
+    <!-- ── Worker status panel ── -->
+    <div id="workerCards"></div>
+  </div>
+
+  <!-- ── Live Events ────────────────────────────────────────────────── -->
   <div class="card">
     <div class="header-row">
       <h2>Live Events</h2>
@@ -73,24 +154,27 @@
     </table>
   </div>
 
+  <div class="toast" id="toast" style="position:fixed;bottom:1.5rem;right:1.5rem;background:#22c55e;
+    color:#fff;padding:0.75rem 1.25rem;border-radius:0.5rem;font-size:0.875rem;font-weight:600;
+    opacity:0;transition:opacity 0.3s;pointer-events:none;"></div>
+
   <script>
     let totalCount = 0;
     const vehicles = new Set();
     const speeds = [];
     const MAX_ROWS = 100;
 
+    // ── SSE connection ────────────────────────────────────────────────
     const evtSource = new EventSource('/api/events/stream');
 
     evtSource.onopen = () => {
       document.getElementById('dot').className = 'dot connected';
       document.getElementById('statusText').textContent = 'Connected';
     };
-
     evtSource.onerror = () => {
       document.getElementById('dot').className = 'dot error';
       document.getElementById('statusText').textContent = 'Reconnecting…';
     };
-
     evtSource.onmessage = (e) => {
       let ev;
       try { ev = JSON.parse(e.data); } catch { return; }
@@ -98,12 +182,12 @@
       updateStats(ev);
     };
 
+    // ── Event table ──────────────────────────────────────────────────
     function addRow(ev) {
       totalCount++;
       document.getElementById('empty').style.display = 'none';
       document.getElementById('eventTable').style.display = 'table';
       const tbody = document.getElementById('tbody');
-
       const badgeClass = ev.engineStatus === 'ON' ? 'badge-on' : ev.engineStatus === 'IDLE' ? 'badge-idle' : 'badge-off';
       const speedPct = Math.min(100, (ev.speed / 150) * 100).toFixed(0);
       const tr = document.createElement('tr');
@@ -141,6 +225,141 @@
       document.getElementById('totalCount').textContent = '0';
       document.getElementById('vehicleCount').textContent = '0';
       document.getElementById('avgSpeed').textContent = '—';
+    }
+
+    // ── Consumer thread controls ─────────────────────────────────────
+    function toggleCrashControls() {
+      const enabled = document.getElementById('crashEnabled').checked;
+      const slider  = document.getElementById('cfgCrashCount');
+      const note    = document.getElementById('crashOffNote');
+      slider.disabled = !enabled;
+      note.style.display = enabled ? 'none' : '';
+      if (!enabled) {
+        slider.value = 0;
+        document.getElementById('cfgCrashCountDisplay').textContent = '0';
+      } else if (parseInt(slider.value) === 0) {
+        slider.value = 1;
+        document.getElementById('cfgCrashCountDisplay').textContent = '1';
+      }
+    }
+
+    function updateCrashMax() {
+      const n = parseInt(document.getElementById('cfgThreads').value);
+      const slider = document.getElementById('cfgCrashCount');
+      slider.max = n;
+      if (parseInt(slider.value) > n) {
+        slider.value = n;
+        document.getElementById('cfgCrashCountDisplay').textContent = n;
+      }
+    }
+
+    async function applyConsumerConfig() {
+      const payload = {
+        threadCount:         parseInt(document.getElementById('cfgThreads').value),
+        processingDelayMs:   parseInt(document.getElementById('cfgDelay').value),
+        crashEnabled:        document.getElementById('crashEnabled').checked,
+        crashingThreadCount: parseInt(document.getElementById('cfgCrashCount').value)
+      };
+      try {
+        const res = await fetch('/api/consumers/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        renderWorkers(data.workers);
+        showToast('Config applied');
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    function resetConsumerConfig() {
+      document.getElementById('cfgThreads').value = 1;
+      document.getElementById('cfgThreadsDisplay').textContent = '1';
+      document.getElementById('cfgDelay').value = 0;
+      document.getElementById('cfgDelayDisplay').textContent = '0';
+      document.getElementById('crashEnabled').checked = false;
+      document.getElementById('cfgCrashCount').value = 0;
+      document.getElementById('cfgCrashCount').disabled = true;
+      document.getElementById('cfgCrashCountDisplay').textContent = '0';
+      document.getElementById('crashOffNote').style.display = '';
+      updateCrashMax();
+      applyConsumerConfig();
+    }
+
+    // ── Worker status polling ────────────────────────────────────────
+    const STATE_CLASS = {
+      RUNNING:    'state-running',
+      PROCESSING: 'state-processing',
+      IDLE:       'state-idle',
+      STARTING:   'state-starting',
+      RESTARTING: 'state-restarting',
+      STOPPED:    'state-stopped'
+    };
+
+    function renderWorkers(workers) {
+      const container = document.getElementById('workerCards');
+      if (!workers || workers.length === 0) {
+        container.innerHTML = '<p style="color:#475569;font-size:0.8rem">No workers running.</p>';
+        return;
+      }
+      container.innerHTML = workers.map(w => {
+        const stateClass = STATE_CLASS[w.state] || 'state-starting';
+        const crashBadge = w.isCrashingThread
+          ? `<span class="crash-badge" title="Crash simulation active">🔥 crash mode</span>` : '';
+        const crashInfo = w.crashCount > 0
+          ? `<div class="wstat">crashes: <strong style="color:#fb923c">${w.crashCount}</strong></div>` : '';
+        const partInfo = `<div class="wstat">partitions: ${w.assignedPartitions}</div>`;
+        return `
+          <div class="worker-card">
+            <div class="wid">Worker #${w.id}${crashBadge}</div>
+            <span class="wstate ${stateClass}">${w.state}</span>
+            <div class="wstat">msgs: <strong>${w.messagesProcessed}</strong></div>
+            ${partInfo}
+            ${crashInfo}
+          </div>`;
+      }).join('');
+    }
+
+    // Poll status every 1.5 s and refresh the worker cards
+    let initialSyncDone = false;
+
+    async function pollStatus() {
+      try {
+        const res = await fetch('/api/consumers/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderWorkers(data.workers);
+        // Only sync the config controls once on initial page load so the user
+        // can adjust sliders without the poll overwriting their changes.
+        if (!initialSyncDone) {
+          initialSyncDone = true;
+          const cfg = data.config;
+          if (cfg) {
+            document.getElementById('cfgThreads').value = cfg.threadCount;
+            document.getElementById('cfgThreadsDisplay').textContent = cfg.threadCount;
+            document.getElementById('cfgDelay').value = cfg.processingDelayMs;
+            document.getElementById('cfgDelayDisplay').textContent = cfg.processingDelayMs;
+            document.getElementById('crashEnabled').checked = cfg.crashEnabled;
+            document.getElementById('cfgCrashCount').value = cfg.crashingThreadCount;
+            document.getElementById('cfgCrashCountDisplay').textContent = cfg.crashingThreadCount;
+            document.getElementById('cfgCrashCount').disabled = !cfg.crashEnabled;
+            document.getElementById('crashOffNote').style.display = cfg.crashEnabled ? 'none' : '';
+            updateCrashMax();
+          }
+        }
+      } catch (_) {}
+    }
+
+    setInterval(pollStatus, 1500);
+    pollStatus(); // initial render
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = isError ? '#ef4444' : '#22c55e';
+      t.style.opacity = '1';
+      setTimeout(() => { t.style.opacity = '0'; }, 2500);
     }
   </script>
 </body>

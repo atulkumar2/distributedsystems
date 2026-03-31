@@ -37,6 +37,11 @@
     .badge-on { background: #14532d; color: #4ade80; }
     .badge-idle { background: #1e3a5f; color: #60a5fa; }
     .empty { color: #475569; text-align: center; padding: 2rem; font-size: 0.875rem; }
+    input[type=range] { accent-color: #0ea5e9; padding: 0; border: none; background: transparent; }
+    .progress-bar-wrap { background: #0f172a; border-radius: 9999px; height: 0.5rem; overflow: hidden; margin-top: 0.75rem; }
+    .progress-bar { height: 100%; background: #0ea5e9; transition: width 0.15s; border-radius: 9999px; }
+    .burst-status { font-size: 0.8rem; color: #94a3b8; margin-top: 0.4rem; min-height: 1.2rem; }
+    .btn-danger { background: #ef4444; color: #fff; }
   </style>
 </head>
 <body>
@@ -50,8 +55,7 @@
       <div>
         <label for="vehicleId">Vehicle ID</label>
         <select id="vehicleId">
-          <option>VH-1001</option><option>VH-1002</option><option>VH-1003</option>
-          <option>VH-1004</option><option>VH-1005</option>
+          <option disabled>Loading…</option>
         </select>
       </div>
       <div>
@@ -86,6 +90,46 @@
   </div>
 
   <div class="card">
+    <h2>Burst Send</h2>
+    <div class="grid">
+      <div>
+        <label>Count: <strong id="burstCountDisplay">10</strong> events</label>
+        <input type="range" id="burstCount" min="1" max="500" value="10"
+               oninput="document.getElementById('burstCountDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label>Vehicles: <strong id="burstVehiclesDisplay">—</strong> — use first N vehicle IDs</label>
+        <input type="range" id="burstVehicles" min="1" max="100" value="100"
+               oninput="document.getElementById('burstVehiclesDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label for="burstDelay">Delay between events (ms) &mdash; 0 = server batch</label>
+        <input type="number" id="burstDelay" value="50" min="0" max="2000" step="10">
+      </div>
+      <div>
+        <label>Threads: <strong id="burstThreadsDisplay">1</strong> &mdash; parallel server-side workers (delay=0)</label>
+        <input type="range" id="burstThreads" min="1" max="16" value="1"
+               oninput="document.getElementById('burstThreadsDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label>Fire &amp; Forget: <strong id="fafPctDisplay">0</strong>% of events &mdash;
+          those threads don't wait for Kafka ack</label>
+        <input type="range" id="fafPct" min="0" max="100" value="0" step="5"
+               oninput="document.getElementById('fafPctDisplay').textContent=this.value">
+      </div>
+    </div>
+    <div id="progressWrap" class="progress-bar-wrap" style="display:none">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <p class="burst-status" id="burstStatus"></p>
+    <div class="btn-row">
+      <button class="btn-primary" id="burstBtn" onclick="sendBurst()">&#9654; Send Burst</button>
+      <button class="btn-danger" id="stopBtn" onclick="stopBurst()" style="display:none">&#9646;&#9646; Stop</button>
+      <button class="btn-secondary" onclick="resetBurst()">&#8635; Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Sent Events (<span id="count">0</span>)</h2>
     <div id="tableWrap">
       <p class="empty" id="empty">No events sent yet.</p>
@@ -100,6 +144,8 @@
 
   <script>
     let count = 0;
+    let isBursting = false;
+    let burstAborted = false;
 
     function val(id) { return document.getElementById(id).value; }
 
@@ -159,6 +205,122 @@
       t.className = 'toast' + (isError ? ' error' : '') + ' show';
       setTimeout(() => t.className = 'toast', 2500);
     }
+
+    async function sendBurst() {
+      if (isBursting) return;
+      const total        = parseInt(document.getElementById('burstCount').value);
+      const delay        = parseInt(document.getElementById('burstDelay').value) || 0;
+      const threads      = parseInt(document.getElementById('burstThreads').value) || 1;
+      const vehicleCount = parseInt(document.getElementById('burstVehicles').value) || 0;
+      isBursting   = true;
+      burstAborted = false;
+      document.getElementById('burstBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = '';
+      document.getElementById('progressWrap').style.display = '';
+      const bar    = document.getElementById('progressBar');
+      const status = document.getElementById('burstStatus');
+      bar.style.width = '0%';
+      let sent = 0;
+
+      if (delay === 0) {
+        // Fast path: single server-side batch call, events sent across `threads` threads
+        const fafPct = parseInt(document.getElementById('fafPct').value) || 0;
+        const url = '/api/events/burst?count=' + total + '&threads=' + threads + '&vehicleCount=' + vehicleCount + '&fireAndForgetPct=' + fafPct;
+        const fafLabel = fafPct > 0 ? ' (' + fafPct + '% fire \u0026 forget)' : '';
+        status.textContent = 'Sending ' + total + ' events across ' + threads + ' thread' + (threads > 1 ? 's' : '') + fafLabel + '\u2026';
+        try {
+          const res = await fetch(url, { method: 'POST' });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          // Add rows for tracked events; F&F events ran in background without results.
+          data.events.forEach(ev => addRow(ev));
+          const fnfCount = data.fireAndForget || 0;
+          if (fnfCount > 0) {
+            count += fnfCount;
+            document.getElementById('count').textContent = count;
+          }
+          sent = data.sent + fnfCount;
+          bar.style.width = '100%';
+        } catch (e) { showToast('Burst error: ' + e.message, true); }
+      } else {
+        // Paced path: one request per event so dashboards show a live stream
+        for (let i = 0; i < total; i++) {
+          if (burstAborted) break;
+          try {
+            const res = await fetch('/api/events/random?vehicleCount=' + vehicleCount, { method: 'POST' });
+            if (res.ok) {
+              const ev = await res.json();
+              addRow(ev);
+              sent++;
+              bar.style.width = Math.round((sent / total) * 100) + '%';
+              status.textContent = 'Sending\u2026 ' + sent + ' / ' + total;
+            }
+          } catch (_) { /* skip failed event */ }
+          if (i < total - 1) await sleep(delay);
+        }
+      }
+
+      isBursting   = false;
+      burstAborted = false;
+      document.getElementById('burstBtn').disabled = false;
+      document.getElementById('stopBtn').style.display = 'none';
+      status.textContent = 'Done \u2014 sent ' + sent + ' event' + (sent !== 1 ? 's' : '') + '.';
+      showToast('Burst complete: ' + sent + ' events sent');
+    }
+
+    function stopBurst() {
+      burstAborted = true;
+      document.getElementById('burstStatus').textContent = 'Stopping\u2026';
+    }
+
+    function resetBurst() {
+      if (isBursting) return;
+      const totalVehicles = parseInt(document.getElementById('burstVehicles').max) || 100;
+      const set = (id, val, displayId) => {
+        document.getElementById(id).value = val;
+        if (displayId) document.getElementById(displayId).textContent = val;
+      };
+      set('burstCount',   10,            'burstCountDisplay');
+      set('burstVehicles', totalVehicles, 'burstVehiclesDisplay');
+      set('burstDelay',   50);
+      set('burstThreads', 1,             'burstThreadsDisplay');
+      set('fafPct',       0,             'fafPctDisplay');
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('burstStatus').textContent = '';
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // Sync a slider's label from its current .value (handles browser form-state restoration
+    // on refresh, where the browser restores the slider position but not the <strong> text).
+    function syncLabel(sliderId, displayId) {
+      const val = document.getElementById(sliderId).value;
+      document.getElementById(displayId).textContent = val;
+    }
+
+    // On page load: fetch vehicle list from the backend, populate the compose dropdown
+    // and update the burst vehicles slider max to match the actual vehicle count.
+    (async () => {
+      // Sync all burst labels first — covers the case where the browser restored
+      // slider positions to non-default values after a page refresh / redeploy.
+      syncLabel('burstCount',   'burstCountDisplay');
+      syncLabel('burstThreads', 'burstThreadsDisplay');
+      syncLabel('fafPct',       'fafPctDisplay');
+
+      try {
+        const res = await fetch('/api/vehicles');
+        const ids = await res.json();
+        const sel = document.getElementById('vehicleId');
+        sel.innerHTML = ids.map(id => `<option value="${id}">${id}</option>`).join('');
+        const slider = document.getElementById('burstVehicles');
+        // Reset the vehicles slider to "all" on every fresh page load so the
+        // label is always correct regardless of what the browser may have cached.
+        slider.max   = ids.length;
+        slider.value = ids.length;
+        document.getElementById('burstVehiclesDisplay').textContent = ids.length;
+      } catch (_) {}
+    })();
   </script>
 </body>
 </html>

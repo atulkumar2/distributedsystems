@@ -2,7 +2,6 @@ package com.example.telematics.consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -16,7 +15,7 @@ public class TelemetryConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(TelemetryConsumer.class);
 
-    // Thread-safe list of active SSE connections; Kafka listener runs on its own thread
+    // Thread-safe list of active SSE connections; multiple consumer worker threads write here
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
     /**
@@ -35,12 +34,11 @@ public class TelemetryConsumer {
     }
 
     /**
-     * Kafka listener: fires for every record on the topic and pushes the raw JSON
-     * string to all currently connected SSE clients.
+     * Called by ConsumerThreadPool workers for every Kafka record they process.
+     * Pushes the raw JSON string to all currently connected SSE clients.
+     * Safe to call from multiple threads concurrently.
      */
-    @KafkaListener(topics = "${telemetry.topic}", groupId = "${spring.kafka.consumer.group-id}")
-    public void onMessage(String message) {
-        log.debug("Received from Kafka: {}", message);
+    public void push(String message) {
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
