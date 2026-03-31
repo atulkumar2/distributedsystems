@@ -1,6 +1,9 @@
 # Vehicle Telemetry — Web App Setup
 
-Two Spring Boot apps wired to Kafka: a producer UI where you send telemetry events from your browser and a consumer UI where you watch them arrive in real-time.
+**Step 2** of three setups in this repo. Two Spring Boot apps wired to Kafka: a producer UI where
+you send telemetry events from the browser and a consumer UI where you watch them arrive live.
+Introduces Spring Boot, `@KafkaListener`, SSE streaming, and Server-Sent Events — without the
+complexity of the full streaming-enhancements stack.
 
 ```text
 producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
@@ -18,6 +21,7 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
 ## Quick start (Docker — everything in one command)
 
 ```bash
+cd web-apps/
 docker compose up --build
 ```
 
@@ -74,7 +78,7 @@ cd consumer-app && mvn spring-boot:run
 
 ```text
 web-apps/
-├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 25) — 3 modules
+├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 17) — 3 modules
 ├── docker-compose.yml       orchestrates Kafka + Kafka UI + both apps
 ├── telemetry-model/         shared library module
 │   ├── pom.xml
@@ -103,3 +107,24 @@ web-apps/
             ├── application.properties
             └── static/index.html        (live event table via EventSource)
 ```
+
+## What to observe
+
+| What | Where to look |
+|---|---|
+| Send events | <http://localhost:8081> → click **Randomise & Send** |
+| Live event stream | <http://localhost:8082> → events appear via SSE |
+| Topic messages with key/partition/offset | Kafka UI → Topics → vehicle-telemetry → Messages |
+| Same vehicleId always on same partition | Partition column in Kafka UI messages view |
+| Consumer group lag | Kafka UI → Consumer Groups → `vehicle-telemetry-streaming-web-group` |
+
+## Next steps
+
+For a full streaming platform, step up to **[streaming-enhancements/](../streaming-enhancements/)**, which adds:
+
+- Two additional consumer services (alert + storage) each with their own dashboards
+- 8 real-time alert rules with severity classification
+- Dead-Letter Queue for poison-pill events
+- Always-on vehicle fleet simulator
+- Manual commit with retry logic
+- Rolling file logs per service

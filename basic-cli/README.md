@@ -1,51 +1,50 @@
 # Vehicle Telemetry Kafka Learning Project (Java + Maven)
 
-A minimal but practical hands-on project to learn Java to Kafka integration using an IoT/telematics scenario.
+A minimal but practical hands-on project to learn Java + Kafka integration using an IoT/telematics scenario.
+This is **Step 1** of three setups in this repo — pure Java, no frameworks, lowest possible abstraction layer.
 
 ## What this project demonstrates
 
 - Java Kafka producer
-- Java Kafka consumer
-- JSON telemetry payloads
-- `vehicleId` as Kafka message key
+- Java Kafka consumer (auto-commit and manual-commit)
+- JSON telemetry payloads with `vehicleId` as the message key
 - Standard consumer read/print loop
-- Manual offset commit consumer
-- Broker endpoint from config file (`src/main/resources/kafka.properties`)
+- Manual offset commit for at-least-once delivery guarantees
+- Broker endpoint loaded from a config file (`src/main/resources/kafka.properties`)
 - Kafka UI dashboard via Docker Compose
-- Practical comments in code explaining why key settings matter
+- Inline comments explaining *why* each Kafka setting matters
 
 ## Project structure
 
 ```text
-vehicle-telemetry-kafka/
+basic-cli/
 ├── pom.xml
-└── src
-    └── main
-        └── java
-            └── com
-                └── example
-                    └── telematics
-                        ├── consumer
-                        │   ├── KafkaConsumerExample.java
-                        │   └── KafkaManualCommitConsumerExample.java
-                        ├── model
-                        │   └── TelemetryEvent.java
-                        ├── producer
-                        │   └── KafkaProducerExample.java
-                        └── util
-                            └── JsonUtil.java
+├── docker-compose.yml
+└── src/main/
+    ├── java/com/example/telematics/
+    │   ├── consumer/
+    │   │   ├── KafkaConsumerExample.java          auto-commit consumer
+    │   │   └── KafkaManualCommitConsumerExample.java
+    │   ├── model/
+    │   │   └── TelemetryEvent.java
+    │   ├── producer/
+    │   │   └── KafkaProducerExample.java
+    │   └── util/
+    │       └── JsonUtil.java                      singleton ObjectMapper
+    └── resources/
+        └── kafka.properties                       broker address + group ids
 ```
 
 ## Prerequisites
 
-- Java 25+
+- Java 17+
 - Maven wrapper included — no separate Maven installation needed (runs Maven 4.0.0 via `./mvnw`)
 - Apache Kafka running locally on `localhost:9092`
 
 ## Run Kafka locally with Docker Compose
 
-The `docker-compose.yml` starts both Kafka (KRaft, single node) and the
-[Kafka UI dashboard](https://github.com/provectus/kafka-ui) with one command:
+The `docker-compose.yml` starts Kafka (KRaft, single node) and the
+[Kafka UI dashboard](https://github.com/provectus/kafka-ui) in one command:
 
 ```bash
 docker compose up -d
@@ -92,7 +91,7 @@ docker exec -it kafka-local /opt/kafka/bin/kafka-topics.sh \
 
 ## Kafka UI
 
-Open http://localhost:8080 once the stack is up.
+Open [http://localhost:8080](http://localhost:8080) once the stack is up.
 
 Useful views for this project:
 
@@ -153,8 +152,8 @@ Offsets committed manually for latest processed batch.
 
 ## End-to-end test flow
 
-1. Start Kafka locally.
-2. Create topic `vehicle-telemetry`.
+1. Start Kafka: `docker compose up -d`
+2. Create topic `vehicle-telemetry` (see above).
 3. Run one consumer (`KafkaConsumerExample`) in terminal A.
 4. Run producer (`KafkaProducerExample`) in terminal B.
 5. Observe key/value/partition/offset in terminal A.
@@ -163,22 +162,26 @@ Offsets committed manually for latest processed batch.
 
 ## Why key and consumer group choices matter
 
-- `vehicleId` as key: events for each vehicle stay ordered because Kafka maps the same key to the same partition.
-- Partitioning: different vehicles can be spread across partitions for parallel processing.
-- Consumer group: multiple consumer instances in the same group share partitions and scale processing.
-- Auto commit vs manual commit:
-  - Auto commit is simple but can acknowledge offsets before your business logic fully completes.
-  - Manual commit is safer when you need stronger processing guarantees.
+- **`vehicleId` as key**: events for each vehicle stay ordered because Kafka maps the same key to the same partition.
+- **Partitioning**: different vehicles spread across partitions enable parallel processing.
+- **Consumer group**: multiple consumer instances in the same group share partitions and scale throughput.
+- **Auto commit vs manual commit**:
+  - Auto commit is simple but may acknowledge offsets before business logic fully completes.
+  - Manual commit is safer when you need at-least-once delivery guarantees.
 
 ## How this maps to a real telematics architecture
 
-- Producer service: vehicle gateway or ingestion API publishes telemetry to Kafka.
-- Kafka topic: durable event backbone (`vehicle-telemetry`) decouples producers and consumers.
-- Consumer service: one service can detect over-speeding, another can track fuel anomalies.
-- Downstream analytics: stream processor or data lake pipeline builds dashboards, alerts, and fleet insights.
+| This project | Real system |
+|---|---|
+| Producer | Vehicle gateway / IoT ingestion API |
+| Kafka topic | Durable event backbone decoupling producers and consumers |
+| Auto-commit consumer | Analytics pipeline or dashboard feed |
+| Manual-commit consumer | Time-series DB writer (InfluxDB, TimescaleDB) |
+| `vehicleId` message key | Device ID ensuring per-device ordered processing |
 
-## Notes for learning
+## Next steps
 
-- This project intentionally uses plain Java with minimal abstractions.
-- JSON is sent as plain string to keep focus on Kafka fundamentals.
-- Once comfortable, add schema management, retries/backoff tuning, and error handling patterns.
+Once comfortable here, step up to:
+
+- **[web-apps/](../web-apps/)** — Spring Boot UIs for producing and consuming events in the browser
+- **[streaming-enhancements/](../streaming-enhancements/)** — full multi-service platform with 8 alert rules, DLQ, vehicle simulators, and file logging

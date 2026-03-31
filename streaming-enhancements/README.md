@@ -1,7 +1,8 @@
 # Streaming Enhancements
 
-Full-stack vehicle telemetry Kafka system — four browser UIs, backend stream processors,
-and a Dead-Letter Queue, all in one self-contained Docker Compose stack.
+**Step 3** — Full-stack vehicle telemetry Kafka platform. Four browser UIs, two stream-processing
+backends, a Dead-Letter Queue, an always-on vehicle fleet simulator, 8 real-time alert rules, and
+rolling file logs. All in one self-contained Docker Compose stack.
 
 ---
 
@@ -11,7 +12,10 @@ and a Dead-Letter Queue, all in one self-contained Docker Compose stack.
   [Producer UI :8081]          [Consumer UI :8082]
   producer-app                 consumer-app
   - form / random send         - SSE live stream
-  - KafkaTemplate              - Spring @KafkaListener
+  - AlwaysOnPool simulator     - configurable thread pool
+  - KafkaTemplate              - crash / lag simulation
+  - client-id: telemetry-      - client-id: consumer-worker-N
+    producer-1
          │                            ▲
          ▼  key = vehicleId           │ (fan-out group)
   ┌─────────────────────┐            │
@@ -20,21 +24,37 @@ and a Dead-Letter Queue, all in one self-contained Docker Compose stack.
              │ fan-out: all groups receive every message independently
      ┌────────┴────────┐
      ▼                 ▼
-[telemetry-storage-group]   [telemetry-alert-group]
-  StorageConsumer             AlertConsumer
-  - parse JSON                - speed > 100 → ALERT
-  - in-memory store           - fuel  < 20  → WARNING
-  - manual commit             - auto commit
-  - retry 3x on failure       - SSE push to browser
-  - speed > 120 → DLQ
-  - SSE push to browser
-  [Storage UI :8085]          [Alert UI :8086]
-         │
-         ▼
-  ┌─────────────────────────┐
-  │  vehicle-telemetry-dlq  │  ← failed events with error reason
-  └─────────────────────────┘
+[telemetry-storage-group]    [telemetry-alert-group]
+ StorageService               AlertService
+ client-id:                   client-id:
+  storage-consumer-1           alert-consumer-1
+ - parse JSON                 - 8 alert rules (see below)
+ - in-memory store            - offline watcher (10 s)
+ - manual commit              - auto commit
+ - retry 3× on failure        - SSE push to browser
+ - speed > 120 → DLQ
+ - SSE push to browser
+ [Storage UI :8085]           [Alert UI :8086]
+        │
+        ▼
+ ┌─────────────────────────┐
+ │  vehicle-telemetry-dlq  │  ← failed events with error reason
+ └─────────────────────────┘
 ```
+
+### 8 alert rules (Alert Consumer)
+
+| Priority | Rule | Condition | Type |
+|---|---|---|---|
+| 1 | `critical-speed` | speed > 120 km/h | CRITICAL |
+| 2 | `overspeed` | speed > 100 km/h | ALERT |
+| 3 | `critical-fuel` | fuel < 10 % | CRITICAL |
+| 4 | `low-fuel` | fuel < 20 % | WARNING |
+| 5 | `engine-anomaly` | engineStatus not ON or OFF | WARNING |
+| 6 | `sudden-change` | speed delta > 40 km/h vs. previous event | WARNING |
+| 7 | `geofence` | lat/lng outside Bengaluru bounding box | WARNING |
+| 8 | `vehicle-offline` | vehicle silent for > 10 s | WARNING |
+| — | `nominal` | none of the above | OK |
 
 ### Key concepts explained
 
@@ -42,39 +62,49 @@ and a Dead-Letter Queue, all in one self-contained Docker Compose stack.
 
 A Kafka topic is split into N partitions. Each partition is an ordered, immutable log.
 Multiple consumers in a group can read different partitions in parallel — more partitions
-= higher throughput. Use `vehicle-telemetry` which has 3 partitions.
+= higher throughput. `vehicle-telemetry` has 3 partitions.
 
 #### Same key → same partition
 
 The producer uses `vehicleId` as the message key. Kafka's default hash-partitioner
-maps the same key to the same partition deterministically. This means all events for
-`VH-1004` always land in the same partition, preserving per-vehicle ordering without
-any coordination.
+maps the same key to the same partition deterministically — all events for
+`VH-1004` always land in partition N, preserving per-vehicle ordering.
 
 #### Fan-out pattern
 
-Two different consumer group IDs (`telemetry-storage-group`, `telemetry-alert-group`)
-subscribe to the same topic. Kafka delivers every message to **both** groups independently.
-Neither consumer "steals" messages from the other.
+`telemetry-storage-group` and `telemetry-alert-group` both subscribe to the same topic.
+Kafka delivers every message to **both** groups independently — neither consumer steals
+messages from the other.
 
 #### Manual offset commit (Storage Consumer)
 
-`enable.auto.commit=false` + `commitSync()` after successful processing.
-This gives *at-least-once* delivery: if the process crashes before committing, Kafka
-re-delivers the record on restart. The DLQ ensures even records that always fail are
-not replayed forever.
+`enable.auto.commit=false` + `commitSync()` after successful processing gives _at-least-once_
+delivery: if the process crashes before committing, Kafka re-delivers the record on restart.
+The DLQ prevents a bad message from blocking the consumer indefinitely.
 
 #### Dead-Letter Queue (DLQ)
 
-Events that exceed the failure threshold (speed > 120) or fail all retries are
-published to `vehicle-telemetry-dlq` with an error reason. This prevents a bad
-message from blocking the consumer indefinitely (poison-pill problem).
+Events that exceed the failure threshold (speed > 120) or exhaust all retries are
+published to `vehicle-telemetry-dlq` with an error reason attached as metadata.
 
 #### Consumer lag
 
 Lag = (latest offset in partition) − (committed offset for the consumer group).
 Non-zero lag means the consumer is falling behind producers. Enable `SLOW_MODE=true`
-to watch lag grow in the Kafka UI.
+on storage-consumer to watch lag grow in the Kafka UI.
+
+#### Always-On vehicle simulator (Producer UI)
+
+`AlwaysOnPool` runs N virtual threads (one per vehicle) that continuously evolve and
+publish telemetry at 1-second intervals. Each thread has its own lifecycle — vehicles
+can be paused, frozen, or stopped individually. `activate(count)` is idempotent —
+it targets a total active count, not "add N more".
+
+#### Fixed consumer client IDs
+
+Every consumer and producer sets a stable `client.id` in Kafka props. This makes the
+client appear under a meaningful name in broker logs and consumer-lag metrics tools
+instead of an auto-assigned random UUID.
 
 ---
 
@@ -90,9 +120,9 @@ streaming-enhancements/
 ├── config/                  ← AppConfig (all constants + env-var overrides)
 ├── dlq-producer/            ← DlqProducer (shared Kafka producer for DLQ)
 ├── storage-consumer/        ← Spring Boot UI :8085 — event store dashboard + SSE feed
-├── alert-consumer/          ← Spring Boot UI :8086 — alert feed dashboard + SSE feed
-├── producer-app/            ← Spring Boot UI :8081 — send events via browser
-└── consumer-app/            ← Spring Boot SSE UI :8082 — live event display
+├── alert-consumer/          ← Spring Boot UI :8086 — 8-rule alert dashboard + SSE feed
+├── producer-app/            ← Spring Boot UI :8081 — send events + always-on simulator
+└── consumer-app/            ← Spring Boot UI :8082 — live event stream + thread pool demo
 ```
 
 ---
@@ -110,14 +140,10 @@ This starts:
 
 - Kafka (port `9094` on host)
 - Kafka UI at <http://localhost:8084>
-- **Producer UI** at <http://localhost:8081> — send events from the browser
+- **Producer UI** at <http://localhost:8081> — send events or start the always-on simulator
 - **Consumer UI** at <http://localhost:8082> — watch events arrive live via SSE
 - **Storage Consumer UI** at <http://localhost:8085> — in-memory event store table + SSE feed
-- **Alert Consumer UI** at <http://localhost:8086> — live ALERT / WARNING / OK feed
-
-Open <http://localhost:8081> and click **Randomise & Send** a few times, then switch
-to <http://localhost:8082> to see those events arrive live. Open <http://localhost:8085>
-for the event store dashboard and <http://localhost:8086> for the real-time alert feed.
+- **Alert Consumer UI** at <http://localhost:8086> — real-time 8-rule alert feed
 
 ### Option B — Run locally (Kafka must already be running)
 
@@ -143,10 +169,8 @@ java -jar consumer-app/target/consumer-app-*.jar
 Override Kafka address:
 
 ```bash
-# All four apps are Spring Boot — use KAFKA_BOOTSTRAP_SERVERS (read by AppConfig):
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar storage-consumer/target/storage-consumer-*.jar
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar alert-consumer/target/alert-consumer-*.jar
-# producer-app and consumer-app also accept the Spring Boot property:
 SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar producer-app/target/producer-app-*.jar
 ```
 
@@ -158,30 +182,48 @@ SLOW_MODE=true java -jar storage-consumer/target/storage-consumer-*.jar
 
 ---
 
+## Log files
+
+Each service writes to both stdout (console) and its own rolling log files under `logs/`.
+
+| Service | Generic app log | Focused Kafka log |
+|---|---|---|
+| `producer-app` | `logs/producer-app.log` | `logs/producer-kafka.log` — only the `producer` package |
+| `consumer-app` | `logs/consumer-app.log` | `logs/consumer-kafka.log` — only the `consumer` package |
+| `alert-consumer` | `logs/alert-consumer.log` | — |
+| `storage-consumer` | `logs/storage-consumer.log` | — |
+
+Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed archives, 100 MB total cap per service.
+
+---
+
 ## What to Observe
 
 | What | Where to look |
 |---|---|
-| Send events from browser | <http://localhost:8081> → click **Randomise & Send** |
-| Live event stream in browser | <http://localhost:8082> → events appear in real time via SSE |
+| Send manual events | <http://localhost:8081> → click **Randomise & Send** |
+| Start always-on simulator | <http://localhost:8081> → **Always-On Vehicles** → set count → Activate |
+| Live event stream | <http://localhost:8082> → events appear in real time via SSE |
+| Crash / lag simulation | <http://localhost:8082> → configure thread pool with crash enabled |
 | In-memory event store (latest state per vehicle) | <http://localhost:8085> → event store table |
-| Storage Consumer SSE feed (STORED / DLQ status) | <http://localhost:8085> → live feed panel |
-| Storage Consumer metrics (processed / failures / store size) | <http://localhost:8085> → metrics bar |
-| Real-time alert classification (ALERT / WARNING / OK) | <http://localhost:8086> → alert feed |
-| Alert Consumer metrics (processed / alerts / warnings) | <http://localhost:8086> → metrics bar |
+| Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:8085> → live feed panel |
+| Storage Consumer metrics | <http://localhost:8085> → metrics bar |
+| Real-time 8-rule alert classifications | <http://localhost:8086> → alert feed |
+| Alert severity badges and rule tags | <http://localhost:8086> → CRITICAL / ALERT / WARNING / OK rows |
+| Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:8086> → metrics bar |
 | Both consumer groups receive same Kafka message | Kafka UI → Topics → vehicle-telemetry → Messages |
 | DLQ receives events with speed > 120 | Kafka UI → Topics → vehicle-telemetry-dlq |
 | Lag grows when SLOW_MODE=true | Kafka UI → Consumer Groups → telemetry-storage-group |
+| Fixed consumer client IDs in broker logs | Kafka UI → Consumers → look for `alert-consumer-1`, `storage-consumer-1` |
 | Same vehicleId always on same partition | Kafka UI → Topics → vehicle-telemetry → Messages → Partition column |
 
 ### Observing lag step by step
 
-1. Start both consumers normally (`SLOW_MODE=false`)
-2. Send ~20 events quickly from the UI producer
-3. Observe lag = 0 (consumers keep up)
+1. Start all services normally
+2. Activate the always-on simulator with 5 vehicles from <http://localhost:8081>
+3. Observe lag ≈ 0 (consumers keep up)
 4. Restart storage-consumer with `SLOW_MODE=true`
-5. Send another 20 events
-6. Open Kafka UI → Consumer Groups → `telemetry-storage-group` → watch lag increase
+5. Watch lag grow in Kafka UI → Consumer Groups → `telemetry-storage-group`
 
 ---
 
@@ -193,15 +235,20 @@ Override at runtime via environment variables:
 | Env var | Default | Description |
 |---|---|---|
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
-| `SLOW_MODE` | `false` | Set `true` to sleep 200–500 ms per message |
+| `SLOW_MODE` | `false` | Set `true` to sleep 200–500 ms per message in storage-consumer |
 
 Thresholds (change in source only):
 
-| Constant | Value | Meaning |
+| Constant | Value | Rule triggered |
 |---|---|---|
-| `SPEED_ALERT_THRESHOLD` | 100 km/h | Alert Consumer raises ALERT |
-| `SPEED_FAILURE_THRESHOLD` | 120 km/h | Storage Consumer simulates failure → DLQ |
-| `FUEL_WARN_THRESHOLD` | 20 % | Alert Consumer raises WARNING |
+| `SPEED_ALERT_THRESHOLD` | 100 km/h | `overspeed` ALERT |
+| `SPEED_CRITICAL_THRESHOLD` | 120 km/h | `critical-speed` CRITICAL; also routes to DLQ in storage-consumer |
+| `FUEL_WARN_THRESHOLD` | 20 % | `low-fuel` WARNING |
+| `FUEL_CRITICAL_THRESHOLD` | 10 % | `critical-fuel` CRITICAL |
+| `SPEED_SUDDEN_CHANGE_KMH` | 40 km/h | `sudden-change` WARNING |
+| `GEO_LAT_MIN/MAX` | 12.88–13.12 | Bengaluru geofence latitude bounds |
+| `GEO_LNG_MIN/MAX` | 77.48–77.72 | Bengaluru geofence longitude bounds |
+| `VEHICLE_OFFLINE_SECONDS` | 10 s | `vehicle-offline` WARNING |
 | `MAX_RETRIES` | 3 | Retries before routing to DLQ |
 
 ---
@@ -216,3 +263,6 @@ Thresholds (change in source only):
 | DLQ | Ops alerting + manual replay queue |
 | `vehicleId` message key | Device ID ensuring ordered processing per device |
 | Fan-out consumer groups | Multiple downstream systems (analytics, billing, safety) |
+| AlwaysOnPool simulator | Fleet of always-connected vehicles streaming live telemetry |
+| Fixed `client.id` | Stable identity in broker logs and monitoring dashboards |
+
