@@ -294,8 +294,10 @@ public class StorageService implements ApplicationRunner {
         props.put(ConsumerConfig.GROUP_ID_CONFIG,                  AppConfig.GROUP_STORAGE);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,    StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,  StringDeserializer.class.getName());
-        // Start from the earliest uncommitted offset; useful for replaying history on restart
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,         "earliest");
+        // latest: if the group has no committed offset (fresh Kafka / wiped __consumer_offsets),
+        // start from the end of the topic so old replayed events don't flood the system.
+        // When a committed offset exists, this setting is ignored and processing resumes there.
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,         "latest");
         // Manual commit: offset advances only after successful business logic
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,        "false");
         return props;

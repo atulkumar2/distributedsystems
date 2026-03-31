@@ -88,8 +88,9 @@ public class VehicleSimulator implements Runnable {
                 handlePauseIfRequested();
                 if (killed) break;
                 if (!frozen) evolveState();
+                if (killed) break;   // don't send an event if killed during evolveState
                 sendEvent();
-                Thread.sleep(1_000);
+                killAwareSleep(1_000);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -104,6 +105,18 @@ public class VehicleSimulator implements Runnable {
         state = State.PAUSED;
         while (pauseRequested && !killed) Thread.sleep(100);
         if (!killed) state = State.CRUISING;
+    }
+
+    /**
+     * Sleep for {@code millis} total, but wake up within ~100 ms when
+     * {@code killed} is set — without requiring Thread.interrupt().
+     * Also responds immediately to Thread.interrupt() (InterruptedException propagates).
+     */
+    private void killAwareSleep(long millis) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + millis;
+        while (!killed && System.currentTimeMillis() < deadline) {
+            Thread.sleep(100);
+        }
     }
 
     // ── State-machine tick ─────────────────────────────────────────────────────

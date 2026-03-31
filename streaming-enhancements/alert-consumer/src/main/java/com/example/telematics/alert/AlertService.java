@@ -381,7 +381,7 @@ public class AlertService implements ApplicationRunner {
         props.put(ConsumerConfig.GROUP_ID_CONFIG,                 AppConfig.GROUP_ALERT);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,        "earliest");
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,        "latest");
         // Alert consumer is a read-only observer — auto-commit is acceptable.
         // Losing an occasional alert on a crash does not cause data corruption.
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,       "true");
