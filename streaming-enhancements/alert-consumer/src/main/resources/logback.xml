@@ -1,5 +1,26 @@
 <configuration>
+
+    <!-- ── CONSOLE ──────────────────────────────────────────────── -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Rolling file: all alert-consumer logs ────────────────── -->
+    <!-- One log per service makes it easy to grep alerts in isolation -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/alert-consumer.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Roll daily; each rolled file is gzip-compressed -->
+            <fileNamePattern>logs/alert-consumer.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Cap a single file at 10 MB so it stays grep-friendly -->
+            <maxFileSize>10MB</maxFileSize>
+            <!-- Keep 7 days of history; purge anything older -->
+            <maxHistory>7</maxHistory>
+            <!-- Hard cap: prevent runaway disk use across all rolled files -->
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
         </encoder>
@@ -7,5 +28,7 @@
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
     </root>
+
 </configuration>

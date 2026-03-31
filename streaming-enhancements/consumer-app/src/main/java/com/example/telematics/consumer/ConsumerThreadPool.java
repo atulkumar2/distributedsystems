@@ -199,6 +199,9 @@ public class ConsumerThreadPool implements DisposableBean {
                 Properties props = new Properties();
                 props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,       bootstrapServers);
                 props.put(ConsumerConfig.GROUP_ID_CONFIG,                 groupId);
+                // Fixed, sequential id — appears in broker logs as "consumer-worker-1", "consumer-worker-2", etc.
+                // Makes it trivial to correlate a log line with a specific pool slot.
+                props.put(ConsumerConfig.CLIENT_ID_CONFIG,                "consumer-worker-" + id);
                 props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class.getName());
                 props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
                 props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,        "earliest");

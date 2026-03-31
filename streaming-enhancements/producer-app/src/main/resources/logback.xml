@@ -1,0 +1,53 @@
+<configuration>
+
+    <!-- ── CONSOLE ──────────────────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Rolling file: ALL producer-app logs (Spring + Kafka logic) ───────── -->
+    <!-- Generic app-wide log — includes web layer, Spring startup, actuator, etc. -->
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/producer-app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/producer-app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Rolling file: ONLY Kafka producer / simulator logic ──────────────── -->
+    <!-- Focused log for the producer package — easy to grep send events,         -->
+    <!-- simulator state, AlwaysOnPool lifecycle without Spring noise.            -->
+    <appender name="PRODUCER_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/producer-kafka.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/producer-kafka.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Producer package: additivity=true so events also flow to root (CONSOLE + APP_FILE) -->
+    <!-- PRODUCER_FILE gives a clean, focused view of only Kafka send activity.   -->
+    <logger name="com.example.telematics.producer" level="INFO" additivity="true">
+        <appender-ref ref="PRODUCER_FILE"/>
+    </logger>
+
+    <!-- Root: all logs go to CONSOLE and the generic app-wide file -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+    </root>
+
+</configuration>

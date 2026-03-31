@@ -292,6 +292,8 @@ public class StorageService implements ApplicationRunner {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,         AppConfig.BOOTSTRAP_SERVERS);
         props.put(ConsumerConfig.GROUP_ID_CONFIG,                  AppConfig.GROUP_STORAGE);
+        // Fixed client-id: stable name in broker logs and consumer-lag metrics.
+        props.put(ConsumerConfig.CLIENT_ID_CONFIG,                 "storage-consumer-1");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,    StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,  StringDeserializer.class.getName());
         // latest: if the group has no committed offset (fresh Kafka / wiped __consumer_offsets),

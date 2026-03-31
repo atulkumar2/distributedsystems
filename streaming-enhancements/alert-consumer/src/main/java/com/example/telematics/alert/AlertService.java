@@ -379,6 +379,9 @@ public class AlertService implements ApplicationRunner {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,        AppConfig.BOOTSTRAP_SERVERS);
         props.put(ConsumerConfig.GROUP_ID_CONFIG,                 AppConfig.GROUP_ALERT);
+        // Fixed client-id: visible in Kafka broker logs and metrics under a stable name
+        // instead of the broker-assigned random id, which changes on every restart.
+        props.put(ConsumerConfig.CLIENT_ID_CONFIG,                "alert-consumer-1");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,   StringDeserializer.class.getName());
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,        "latest");
