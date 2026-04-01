@@ -265,4 +265,3 @@ Thresholds (change in source only):
 | Fan-out consumer groups | Multiple downstream systems (analytics, billing, safety) |
 | AlwaysOnPool simulator | Fleet of always-connected vehicles streaming live telemetry |
 | Fixed `client.id` | Stable identity in broker logs and monitoring dashboards |
-
