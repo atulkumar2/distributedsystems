@@ -1,4 +1,4 @@
-# Build context: streaming-enhancements/  (set in docker-compose.yml)
+# Build context: kafka-java-web-multi-consumer/  (set in docker-compose.yml)
 # ── Build stage ───────────────────────────────────────────────────────────────
 FROM eclipse-temurin:25-jdk AS builder
 WORKDIR /app

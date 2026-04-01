@@ -147,8 +147,12 @@ public class AlwaysOnPool {
                 .map(VehicleSimulator::getStatus)
                 .sorted(Comparator.comparing(m -> (String) m.get("vehicleId")))
                 .collect(Collectors.toList());
+        long activeCount = simulators.values().stream()
+                .filter(s -> !s.isKilled())
+                .count();
         return Map.of(
-                "activeCount", simulators.size(),
+                "activeCount", activeCount,
+                "reservedCount", simulators.size(),
                 "vehicles",    vehicles
         );
     }

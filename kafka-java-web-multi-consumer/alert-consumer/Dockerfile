@@ -1,4 +1,4 @@
-# Build context: streaming-enhancements/
+# Build context: kafka-java-web-multi-consumer/
 
 # ── Build stage ───────────────────────────────────────────────────────────────
 FROM eclipse-temurin:25-jdk AS builder

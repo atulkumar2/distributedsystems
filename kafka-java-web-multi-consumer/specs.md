@@ -1,8 +1,8 @@
-# Streaming Enhancements specs
+# Kafka Java Web Multi Consumer Specs
 
 ## Table of Contents
 
-- [Streaming Enhancements specs](#streaming-enhancements-specs)
+- [Kafka Java Web Multi Consumer Specs](#kafka-java-web-multi-consumer-specs)
   - [Table of Contents](#table-of-contents)
   - [Current System (DO NOT MODIFY)](#current-system-do-not-modify)
   - [Goal](#goal)
@@ -54,7 +54,7 @@ I already have:
 Work in the current subfolder by copying existing code from web-apps:
 
 ```text
-/streaming-enhancements/
+/kafka-java-web-multi-consumer/
 ```
 
 This will simulate a **real backend processing layer** like in IoT / telematics platforms.
@@ -183,7 +183,7 @@ README should explain:
 Create:
 
 ```text
-streaming-enhancements/
+kafka-java-web-multi-consumer/
   ├── storage-consumer/
   ├── alert-consumer/
   ├── dlq-producer/

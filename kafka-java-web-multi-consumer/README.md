@@ -111,8 +111,9 @@ instead of an auto-assigned random UUID.
 ## Project structure
 
 ```text
-streaming-enhancements/
+kafka-java-web-multi-consumer/
 ├── pom.xml                  ← parent POM (9 modules)
+├── run.sh
 ├── docker-compose.yml       ← Kafka + Kafka UI + all 4 app services
 ├── README.md
 ├── model/                   ← TelemetryEvent, DlqEvent (shared POJOs)
@@ -132,14 +133,25 @@ streaming-enhancements/
 ### Option A — Docker Compose (recommended)
 
 ```bash
-cd streaming-enhancements/
-docker compose up --build
+./run.sh --start
+```
+
+Detached mode:
+
+```bash
+./run.sh --start --detach
+```
+
+Slow mode for lag simulation:
+
+```bash
+./run.sh --start --slow
 ```
 
 This starts:
 
-- Kafka (port `9094` on host)
-- Kafka UI at <http://localhost:8084>
+- Kafka (port `9092` on host)
+- Kafka UI at <http://localhost:8080>
 - **Producer UI** at <http://localhost:8081> — send events or start the always-on simulator
 - **Consumer UI** at <http://localhost:8082> — watch events arrive live via SSE
 - **Storage Consumer UI** at <http://localhost:8085> — in-memory event store table + SSE feed
@@ -148,7 +160,7 @@ This starts:
 ### Option B — Run locally (Kafka must already be running)
 
 ```bash
-cd streaming-enhancements/
+cd kafka-java-web-multi-consumer
 
 # Build all modules
 mvn clean package -DskipTests
@@ -222,7 +234,7 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 1. Start all services normally
 2. Activate the always-on simulator with 5 vehicles from <http://localhost:8081>
 3. Observe lag ≈ 0 (consumers keep up)
-4. Restart storage-consumer with `SLOW_MODE=true`
+4. Restart the stack with `./run.sh --start --slow --detach`
 5. Watch lag grow in Kafka UI → Consumer Groups → `telemetry-storage-group`
 
 ---
