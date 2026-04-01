@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DLQ Viewer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #0b1220;
+      color: #dbe4ee;
+      padding: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .subtitle { color: #9fb0c3; margin-bottom: 20px; }
+    .metrics { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .metric {
+      background: #111b2e;
+      border: 1px solid #24324a;
+      border-radius: 10px;
+      padding: 14px 18px;
+      min-width: 160px;
+    }
+    .metric .label { font-size: 0.75rem; color: #8da2ba; text-transform: uppercase; }
+    .metric .value { font-size: 1.8rem; font-weight: 700; color: #ffb347; }
+    .panel {
+      background: #111b2e;
+      border: 1px solid #24324a;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid #24324a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #8da2ba;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .status.connected { color: #56d364; }
+    .status.disconnected { color: #ff7b72; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #1c2740;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      color: #8da2ba;
+      background: #0f1728;
+      position: sticky;
+      top: 0;
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 70vh;
+    }
+    .error { color: #ff7b72; font-weight: 600; }
+    .meta { color: #9fb0c3; white-space: nowrap; }
+    .json {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: "Cascadia Code", "Fira Code", monospace;
+      color: #c6d4e3;
+    }
+    .empty {
+      padding: 28px 18px;
+      color: #7f91a8;
+    }
+  </style>
+</head>
+<body>
+  <h1>DLQ Viewer</h1>
+  <p class="subtitle">Inspect failed telemetry events from <code>vehicle-telemetry-dlq</code> on port 8085.</p>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="label">Visible DLQ Records</div>
+      <div class="value" id="dlqCount">0</div>
+    </div>
+    <div class="metric">
+      <div class="label">Latest Sequence</div>
+      <div class="value" id="latestSequence">0</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span>Failed Events</span>
+      <span id="connStatus" class="status disconnected">disconnected</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Partition / Offset</th>
+            <th>Error Reason</th>
+            <th>Original Event</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="4" class="empty">Waiting for DLQ traffic…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const rows = document.getElementById('rows');
+    const connStatus = document.getElementById('connStatus');
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function render(records) {
+      document.getElementById('dlqCount').textContent = records.length;
+      document.getElementById('latestSequence').textContent = records[0]?.sequence ?? 0;
+      if (!records.length) {
+        rows.innerHTML = '<tr><td colspan="4" class="empty">Waiting for DLQ traffic…</td></tr>';
+        return;
+      }
+      rows.innerHTML = records.map(r => {
+        const event = r.event || {};
+        const original = JSON.stringify(event.originalEvent ?? {}, null, 2);
+        return `
+          <tr>
+            <td class="meta">${escapeHtml(event.timestamp || 'unknown')}</td>
+            <td class="meta">p${r.partition} · o${r.offset}</td>
+            <td class="error">${escapeHtml(event.error || 'unknown')}</td>
+            <td><pre class="json">${escapeHtml(original)}</pre></td>
+          </tr>`;
+      }).join('');
+    }
+
+    function fetchSnapshot() {
+      fetch('/api/dlq').then(r => r.json()).then(render).catch(() => {});
+      fetch('/api/metrics').then(r => r.json()).then(m => {
+        document.getElementById('dlqCount').textContent = m.dlqCount ?? 0;
+        document.getElementById('latestSequence').textContent = m.latestSequence ?? 0;
+      }).catch(() => {});
+    }
+
+    const source = new EventSource('/api/dlq/stream');
+    source.onopen = () => {
+      connStatus.textContent = 'connected';
+      connStatus.className = 'status connected';
+      fetchSnapshot();
+    };
+    source.onerror = () => {
+      connStatus.textContent = 'disconnected';
+      connStatus.className = 'status disconnected';
+    };
+    source.onmessage = () => fetchSnapshot();
+
+    fetchSnapshot();
+    setInterval(fetchSnapshot, 3000);
+  </script>
+</body>
+</html>
