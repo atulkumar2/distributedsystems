@@ -34,7 +34,7 @@ rolling file logs. All in one self-contained Docker Compose stack.
  - retry 3× on failure        - SSE push to browser
  - speed > 120 → DLQ
  - SSE push to browser
- [Storage UI :8085]           [Alert UI :8086]
+ [Alert UI :8083]             [Storage UI :8084]
         │
         ▼
  ┌─────────────────────────┐
@@ -111,7 +111,7 @@ instead of an auto-assigned random UUID.
 ## Project structure
 
 ```text
-kafka-java-web-multi-consumer/
+kj-03-multicons-base/
 ├── pom.xml                  ← parent POM (9 modules)
 ├── run.sh
 ├── docker-compose.yml       ← Kafka + Kafka UI + all 4 app services
@@ -120,8 +120,8 @@ kafka-java-web-multi-consumer/
 ├── util/                    ← JsonUtil (singleton ObjectMapper)
 ├── config/                  ← AppConfig (all constants + env-var overrides)
 ├── dlq-producer/            ← DlqProducer (shared Kafka producer for DLQ)
-├── storage-consumer/        ← Spring Boot UI :8085 — event store dashboard + SSE feed
-├── alert-consumer/          ← Spring Boot UI :8086 — 8-rule alert dashboard + SSE feed
+├── alert-consumer/          ← Spring Boot UI :8083 — 8-rule alert dashboard + SSE feed
+├── storage-consumer/        ← Spring Boot UI :8084 — event store dashboard + SSE feed
 ├── producer-app/            ← Spring Boot UI :8081 — send events + always-on simulator
 └── consumer-app/            ← Spring Boot UI :8082 — live event stream + thread pool demo
 ```
@@ -154,13 +154,13 @@ This starts:
 - Kafka UI at <http://localhost:8080>
 - **Producer UI** at <http://localhost:8081> — send events or start the always-on simulator
 - **Consumer UI** at <http://localhost:8082> — watch events arrive live via SSE
-- **Storage Consumer UI** at <http://localhost:8085> — in-memory event store table + SSE feed
-- **Alert Consumer UI** at <http://localhost:8086> — real-time 8-rule alert feed
+- **Alert Consumer UI** at <http://localhost:8083> — real-time 8-rule alert feed
+- **Storage Consumer UI** at <http://localhost:8084> — in-memory event store table + SSE feed
 
 ### Option B — Run locally (Kafka must already be running)
 
 ```bash
-cd kafka-java-web-multi-consumer
+cd kj-03-multicons-base
 
 # Build all modules
 mvn clean package -DskipTests
@@ -217,12 +217,12 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 | Start always-on simulator | <http://localhost:8081> → **Always-On Vehicles** → set count → Activate |
 | Live event stream | <http://localhost:8082> → events appear in real time via SSE |
 | Crash / lag simulation | <http://localhost:8082> → configure thread pool with crash enabled |
-| In-memory event store (latest state per vehicle) | <http://localhost:8085> → event store table |
-| Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:8085> → live feed panel |
-| Storage Consumer metrics | <http://localhost:8085> → metrics bar |
-| Real-time 8-rule alert classifications | <http://localhost:8086> → alert feed |
-| Alert severity badges and rule tags | <http://localhost:8086> → CRITICAL / ALERT / WARNING / OK rows |
-| Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:8086> → metrics bar |
+| Real-time 8-rule alert classifications | <http://localhost:8083> → alert feed |
+| Alert severity badges and rule tags | <http://localhost:8083> → CRITICAL / ALERT / WARNING / OK rows |
+| Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:8083> → metrics bar |
+| In-memory event store (latest state per vehicle) | <http://localhost:8084> → event store table |
+| Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:8084> → live feed panel |
+| Storage Consumer metrics | <http://localhost:8084> → metrics bar |
 | Both consumer groups receive same Kafka message | Kafka UI → Topics → vehicle-telemetry → Messages |
 | DLQ receives events with speed > 120 | Kafka UI → Topics → vehicle-telemetry-dlq |
 | Lag grows when SLOW_MODE=true | Kafka UI → Consumer Groups → telemetry-storage-group |

@@ -1,4 +1,4 @@
-# Build context: kafka-java-web-multi-consumer/
+# Build context: kj-03-multicons-base/
 
 # ── Build stage ───────────────────────────────────────────────────────────────
 FROM eclipse-temurin:25-jdk AS builder
@@ -32,5 +32,5 @@ COPY --from=builder /app/alert-consumer/target/alert-consumer-*.jar app.jar
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 ENV SLOW_MODE=false
 
-EXPOSE 8086
+EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]

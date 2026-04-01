@@ -1,7 +1,7 @@
 services:
 
   # ── Apache Kafka (KRaft, single node) ────────────────────────────────────────
-  # This is a standalone Kafka stack for the kafka-java-web-multi-consumer module.
+  # This is a standalone Kafka stack for the kj-04-multicons-adv module.
   # Use the standard local Kafka host port.
   kafka:
     image: apache/kafka:3.8.0
@@ -43,19 +43,19 @@ services:
     ports:
       - "8080:8080"
     environment:
-      KAFKA_CLUSTERS_0_NAME: kafka-java-web-multi-consumer
+      KAFKA_CLUSTERS_0_NAME: kj-04-multicons-adv
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       DYNAMIC_CONFIG_ENABLED: "true"
     depends_on:
       kafka:
         condition: service_healthy
 
-  # ── Storage Consumer ──────────────────────────────────────────────────────────
-  # Reads vehicle-telemetry, stores events in memory, routes failures to DLQ.
+  # ── Storage Consumer UI (:8084) ──────────────────────────────────────────────
+  # Reads vehicle-telemetry, stores events in memory, and backs the storage dashboard.
   # Set SLOW_MODE=true to simulate lag (observable in Kafka UI Consumer Groups tab).
   storage-consumer:
     build:
-      context: .                                    # kafka-java-web-multi-consumer/ is the build context
+      context: .                                    # kj-04-multicons-adv/ is the build context
       dockerfile: storage-consumer/Dockerfile
     container_name: telemetry-storage-consumer
     ports:
@@ -68,7 +68,7 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  # ── Alert Consumer ────────────────────────────────────────────────────────────
+  # ── Alert Consumer UI (:8083) ────────────────────────────────────────────────
   # Independent consumer group — receives the same messages as storage-consumer
   # (fan-out) and raises alerts for overspeed / low-fuel conditions.
   alert-consumer:
@@ -86,6 +86,8 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  # ── DLQ Viewer UI (:8085) ────────────────────────────────────────────────────
+  # Dedicated failed-event viewer for vehicle-telemetry-dlq.
   dlq-viewer:
     build:
       context: .

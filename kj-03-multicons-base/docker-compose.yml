@@ -1,7 +1,7 @@
 services:
 
   # ── Apache Kafka (KRaft, single node) ────────────────────────────────────────
-  # This is a standalone Kafka stack for the kafka-java-web-multi-consumer module.
+  # This is a standalone Kafka stack for the kj-03-multicons-base module.
   # Use the standard local Kafka host port.
   kafka:
     image: apache/kafka:3.8.0
@@ -43,23 +43,23 @@ services:
     ports:
       - "8080:8080"
     environment:
-      KAFKA_CLUSTERS_0_NAME: kafka-java-web-multi-consumer
+      KAFKA_CLUSTERS_0_NAME: kj-03-multicons-base
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       DYNAMIC_CONFIG_ENABLED: "true"
     depends_on:
       kafka:
         condition: service_healthy
 
-  # ── Storage Consumer ──────────────────────────────────────────────────────────
+  # ── Storage Consumer UI (:8084) ──────────────────────────────────────────────
   # Reads vehicle-telemetry, stores events in memory, routes failures to DLQ.
   # Set SLOW_MODE=true to simulate lag (observable in Kafka UI Consumer Groups tab).
   storage-consumer:
     build:
-      context: .                                    # kafka-java-web-multi-consumer/ is the build context
+      context: .                                    # kj-03-multicons-base/ is the build context
       dockerfile: storage-consumer/Dockerfile
     container_name: telemetry-storage-consumer
     ports:
-      - "8085:8085"
+      - "8084:8084"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SLOW_MODE: "false"    # change to "true" to observe lag
@@ -68,7 +68,7 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  # ── Alert Consumer ────────────────────────────────────────────────────────────
+  # ── Alert Consumer UI (:8083) ────────────────────────────────────────────────
   # Independent consumer group — receives the same messages as storage-consumer
   # (fan-out) and raises alerts for overspeed / low-fuel conditions.
   alert-consumer:
@@ -77,7 +77,7 @@ services:
       dockerfile: alert-consumer/Dockerfile
     container_name: telemetry-alert-consumer
     ports:
-      - "8086:8086"
+      - "8083:8083"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SLOW_MODE: "false"

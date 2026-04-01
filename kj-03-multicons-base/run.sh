@@ -26,7 +26,7 @@ STACK_CONTAINERS=(
   telemetry-producer-app
   telemetry-consumer-app
 )
-BLOCKER_PORTS=(9092 8080 8081 8082 8085 8086)
+BLOCKER_PORTS=(9092 8080 8081 8082 8083 8084)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 
 usage() {
@@ -90,8 +90,8 @@ show_next_steps() {
   echo ""
   url "  http://localhost:8081        Producer UI         — fill the form or click Randomise & Send"
   url "  http://localhost:8082        Consumer UI         — live event stream via SSE"
-  url "  http://localhost:8085        Storage Consumer    — in-memory event store + SSE feed"
-  url "  http://localhost:8086        Alert Consumer      — ALERT / WARNING / OK live feed"
+  url "  http://localhost:8083        Alert Consumer      — ALERT / WARNING / OK live feed"
+  url "  http://localhost:8084        Storage Consumer    — in-memory event store + SSE feed"
   url "  http://localhost:8080        Kafka UI            — topics, partitions, consumer lag"
   echo ""
 
@@ -100,8 +100,8 @@ show_next_steps() {
     echo ""
     url "  http://${HOST_IP}:8081"
     url "  http://${HOST_IP}:8082"
-    url "  http://${HOST_IP}:8085"
-    url "  http://${HOST_IP}:8086"
+    url "  http://${HOST_IP}:8083"
+    url "  http://${HOST_IP}:8084"
     url "  http://${HOST_IP}:8080"
     echo ""
   fi
@@ -117,18 +117,18 @@ show_next_steps() {
   echo ""
 
   step "${BOLD}Step 3 — Inspect the event store${RESET}"
-  note "Open http://localhost:8085 — the table shows the latest event per vehicle."
+  note "Open http://localhost:8084 — the table shows the latest event per vehicle."
   note "The live feed panel shows STORED (green) or DLQ (red) per record."
   echo ""
 
   step "${BOLD}Step 4 — Watch alert classification${RESET}"
-  note "Open http://localhost:8086 — each event is tagged ALERT / WARNING / OK."
+  note "Open http://localhost:8083 — each event is tagged ALERT / WARNING / OK."
   note "Thresholds: speed > 100 km/h -> ALERT, fuelLevel < 20 % -> WARNING."
   echo ""
 
   step "${BOLD}Step 5 — Trigger a DLQ event${RESET}"
   note "On the producer form, set speed above 120 km/h and send."
-  note "Check http://localhost:8085 feed — that event should show DLQ (red)."
+  note "Check http://localhost:8084 feed — that event should show DLQ (red)."
   note "Confirm in Kafka UI -> Topics -> vehicle-telemetry-dlq."
   echo ""
 
