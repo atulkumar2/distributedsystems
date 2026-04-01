@@ -9,7 +9,7 @@ streaming platform.
 | Folder | What it contains | Main entry point |
 | --- | --- | --- |
 | [`kafka-java-basic-cli/`](./kafka-java-basic-cli/) | Step 1: plain Java CLI producer and consumer examples, including manual offset commit | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-basic-cli/run.sh) |
-| [`kafka-java-web-apps/`](./kafka-java-web-apps/) | Step 2: Spring Boot producer and consumer web apps with live SSE streaming | [`start-all.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-web-apps/start-all.sh) |
+| [`kafka-java-web-apps/`](./kafka-java-web-apps/) | Step 2: Spring Boot producer and consumer web apps with live SSE streaming | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-web-apps/run.sh) |
 | [`kafka-java-web-multi-consumer/`](./kafka-java-web-multi-consumer/) | Step 3: full multi-consumer platform with storage UI, alert UI, DLQ, and always-on simulator | [`start-all.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-web-multi-consumer/start-all.sh) |
 
 ## What each project teaches
@@ -48,7 +48,7 @@ This starts Kafka and Kafka UI, prepares the topic, and compiles the Java projec
 
 ```bash
 cd kafka-java-web-apps
-./start-all.sh
+./run.sh --start
 ```
 
 This starts Kafka, Kafka UI, the producer UI, and the consumer UI.

@@ -10,33 +10,34 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
    :8081                                            :8082
 ```
 
-> **Note — port assignments:** These ports are chosen to avoid conflicts when `basic-cli/` is also running at the same time.
+> **Note — port assignments:** This setup now uses the standard local ports where possible.
+> That makes local defaults simpler, but it also means it will conflict with
+> `kafka-java-basic-cli` if both stacks are started at the same time.
 >
-> | Service | `basic-cli/` | `web-apps/` |
+> | Service | `kafka-java-basic-cli/` | `kafka-java-web-apps/` |
 > | --- | --- | --- |
-> | Kafka broker (host) | `9092` | `9093` |
-> | Kafka UI | `8080` | `8083` |
+> | Kafka broker (host) | `9092` | `9092` |
+> | Kafka UI | `8080` | `8080` |
 > | Producer / Consumer | — | `8081` / `8082` |
 
 ## Quick start (Docker — everything in one command)
 
 ```bash
-cd web-apps/
-docker compose up --build
+./run.sh --start
 ```
 
 | URL | What you see |
 | --- | --- |
 | [http://localhost:8081](http://localhost:8081) | Producer — compose and send telemetry events |
 | [http://localhost:8082](http://localhost:8082) | Consumer — live stream of incoming events |
-| [http://localhost:8083](http://localhost:8083) | Kafka UI — explore topics, partitions, offsets |
+| [http://localhost:8080](http://localhost:8080) | Kafka UI — explore topics, partitions, offsets |
 
 The topic `vehicle-telemetry` is created automatically on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE=true`).
 
 Stop everything:
 
 ```bash
-docker compose down
+./run.sh --stop
 ```
 
 ## Standalone (no Docker for the apps)
@@ -47,7 +48,7 @@ Start only Kafka and Kafka UI:
 docker compose up kafka kafka-ui
 ```
 
-Then run the apps in separate terminals from the `web-apps/` directory:
+Then run the apps in separate terminals from the `kafka-java-web-apps/` directory:
 
 ```bash
 # Terminal 1 — producer on http://localhost:8081
@@ -77,15 +78,16 @@ cd consumer-app && mvn spring-boot:run
 ## Project structure
 
 ```text
-web-apps/
+kafka-java-web-apps/
 ├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 17) — 3 modules
+├── run.sh
 ├── docker-compose.yml       orchestrates Kafka + Kafka UI + both apps
 ├── telemetry-model/         shared library module
 │   ├── pom.xml
 │   └── src/main/java/…/model/
 │       └── TelemetryEvent.java   single source of truth for the POJO
 ├── producer-app/
-│   ├── Dockerfile           multi-stage; build context is web-apps/
+│   ├── Dockerfile           multi-stage; build context is kafka-java-web-apps/
 │   ├── pom.xml              depends on telemetry-model
 │   └── src/main/
 │       ├── java/…/producer/
@@ -96,7 +98,7 @@ web-apps/
 │           ├── application.properties
 │           └── static/index.html        (vanilla HTML/JS form)
 └── consumer-app/
-    ├── Dockerfile           multi-stage; build context is web-apps/
+    ├── Dockerfile           multi-stage; build context is kafka-java-web-apps/
     ├── pom.xml
     └── src/main/
         ├── java/…/consumer/
@@ -120,7 +122,7 @@ web-apps/
 
 ## Next steps
 
-For a full streaming platform, step up to **[streaming-enhancements/](../streaming-enhancements/)**, which adds:
+For a full streaming platform, step up to **[kafka-java-web-multi-consumer/](../kafka-java-web-multi-consumer/)**, which adds:
 
 - Two additional consumer services (alert + storage) each with their own dashboards
 - 8 real-time alert rules with severity classification
