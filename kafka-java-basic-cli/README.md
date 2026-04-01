@@ -17,8 +17,9 @@ This is **Step 1** of three setups in this repo — pure Java, no frameworks, lo
 ## Project structure
 
 ```text
-basic-cli/
+kafka-java-basic-cli/
 ├── pom.xml
+├── run.sh
 ├── docker-compose.yml
 └── src/main/
     ├── java/com/example/telematics/
@@ -39,7 +40,7 @@ basic-cli/
 
 - Java 17+
 - Maven wrapper included — no separate Maven installation needed (runs Maven 4.0.0 via `./mvnw`)
-- Apache Kafka running locally on `localhost:9092`
+- Docker with `docker compose` for the local Kafka stack
 
 ## Run Kafka locally with Docker Compose
 
@@ -64,6 +65,19 @@ docker compose down
 
 > **Note:** if you already have a `kafka-local` container running from a
 > previous `docker run`, remove it first: `docker rm -f kafka-local`
+
+## Quick start
+
+Use the helper script to start Kafka, wait for broker readiness, create the topic,
+and compile the Java project:
+
+```bash
+./run.sh --start
+```
+
+After it completes, Kafka is available on `localhost:9092`, Kafka UI is available at
+[http://localhost:8080](http://localhost:8080), and the topic `vehicle-telemetry`
+is ready to use.
 
 ## Create the topic
 
@@ -152,8 +166,8 @@ Offsets committed manually for latest processed batch.
 
 ## End-to-end test flow
 
-1. Start Kafka: `docker compose up -d`
-2. Create topic `vehicle-telemetry` (see above).
+1. Start Kafka with `./run.sh --start` or `docker compose up -d`.
+2. Create topic `vehicle-telemetry` if needed (the helper script already does this).
 3. Run one consumer (`KafkaConsumerExample`) in terminal A.
 4. Run producer (`KafkaProducerExample`) in terminal B.
 5. Observe key/value/partition/offset in terminal A.
@@ -183,5 +197,5 @@ Offsets committed manually for latest processed batch.
 
 Once comfortable here, step up to:
 
-- **[web-apps/](../web-apps/)** — Spring Boot UIs for producing and consuming events in the browser
-- **[streaming-enhancements/](../streaming-enhancements/)** — full multi-service platform with 8 alert rules, DLQ, vehicle simulators, and file logging
+- **[kafka-java-web-apps/](../kafka-java-web-apps/)** — Spring Boot UIs for producing and consuming events in the browser
+- **[kafka-java-web-multi-consumer/](../kafka-java-web-multi-consumer/)** — full multi-service platform with 8 alert rules, DLQ, vehicle simulators, and file logging

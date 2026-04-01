@@ -8,7 +8,7 @@ streaming platform.
 
 | Folder | What it contains | Main entry point |
 | --- | --- | --- |
-| [`kafka-java-basic-cli/`](./kafka-java-basic-cli/) | Step 1: plain Java CLI producer and consumer examples, including manual offset commit | [`start-all.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-basic-cli/start-all.sh) |
+| [`kafka-java-basic-cli/`](./kafka-java-basic-cli/) | Step 1: plain Java CLI producer and consumer examples, including manual offset commit | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-basic-cli/run.sh) |
 | [`kafka-java-web-apps/`](./kafka-java-web-apps/) | Step 2: Spring Boot producer and consumer web apps with live SSE streaming | [`start-all.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-web-apps/start-all.sh) |
 | [`kafka-java-web-multi-consumer/`](./kafka-java-web-multi-consumer/) | Step 3: full multi-consumer platform with storage UI, alert UI, DLQ, and always-on simulator | [`start-all.sh`](/home/atul-kumar/workspace/distributedsystems/kafka-java-web-multi-consumer/start-all.sh) |
 
@@ -39,7 +39,7 @@ These projects are designed so their Docker stacks can run side by side without 
 
 ```bash
 cd kafka-java-basic-cli
-./start-all.sh
+./run.sh --start
 ```
 
 This starts Kafka and Kafka UI, prepares the topic, and compiles the Java project.
