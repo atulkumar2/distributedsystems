@@ -1,7 +1,7 @@
 # Vehicle Telemetry Kafka Learning Project (Java + Maven)
 
 A minimal but practical hands-on project to learn Java + Kafka integration using an IoT/telematics scenario.
-This is **Step 1** of three setups in this repo — pure Java, no frameworks, lowest possible abstraction layer.
+This is **Stage 1** of four setups in this repo — pure Java, no frameworks, lowest possible abstraction layer.
 
 ## What this project demonstrates
 
@@ -17,7 +17,7 @@ This is **Step 1** of three setups in this repo — pure Java, no frameworks, lo
 ## Project structure
 
 ```text
-kafka-java-basic-cli/
+kj-01-cli-base/
 ├── pom.xml
 ├── run.sh
 ├── docker-compose.yml
@@ -38,7 +38,7 @@ kafka-java-basic-cli/
 
 ## Prerequisites
 
-- Java 17+
+- Java 25
 - Maven wrapper included — no separate Maven installation needed (runs Maven 4.0.0 via `./mvnw`)
 - Docker with `docker compose` for the local Kafka stack
 
@@ -78,6 +78,12 @@ and compile the Java project:
 After it completes, Kafka is available on `localhost:9092`, Kafka UI is available at
 [http://localhost:8080](http://localhost:8080), and the topic `vehicle-telemetry`
 is ready to use.
+
+If host ports `9092` or `8080` are already in use by another repo stage, clear the blockers first:
+
+```bash
+./run.sh --stop-blockers
+```
 
 ## Create the topic
 
@@ -168,10 +174,10 @@ Offsets committed manually for latest processed batch.
 
 1. Start Kafka with `./run.sh --start` or `docker compose up -d`.
 2. Create topic `vehicle-telemetry` if needed (the helper script already does this).
-3. Run one consumer (`KafkaConsumerExample`) in terminal A.
-4. Run producer (`KafkaProducerExample`) in terminal B.
+3. Run one consumer (`./mvnw exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaConsumerExample`) in terminal A.
+4. Run producer (`./mvnw exec:java -Dexec.mainClass=com.example.telematics.producer.KafkaProducerExample`) in terminal B.
 5. Observe key/value/partition/offset in terminal A.
-6. Stop auto-commit consumer and run manual-commit consumer.
+6. Stop the auto-commit consumer and run the manual-commit consumer with `./mvnw exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaManualCommitConsumerExample`.
 7. Run producer again and observe manual commit logs.
 
 ## Why key and consumer group choices matter
@@ -197,5 +203,6 @@ Offsets committed manually for latest processed batch.
 
 Once comfortable here, step up to:
 
-- **[kafka-java-web-apps/](../kafka-java-web-apps/)** — Spring Boot UIs for producing and consuming events in the browser
-- **[kafka-java-web-multi-consumer/](../kafka-java-web-multi-consumer/)** — full multi-service platform with 8 alert rules, DLQ, vehicle simulators, and file logging
+- **[kj-02-web/](../kj-02-web/)** — Spring Boot UIs for producing and consuming events in the browser
+- **[kj-03-multicons-base/](../kj-03-multicons-base/)** — multi-consumer platform with alerting, storage, DLQ routing, and always-on simulation
+- **[kj-04-multicons-adv/](../kj-04-multicons-adv/)** — advanced failure handling with retry-before-DLQ and a dedicated DLQ viewer

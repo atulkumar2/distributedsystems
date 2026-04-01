@@ -3,7 +3,7 @@
 **Step 2** of three setups in this repo. Two Spring Boot apps wired to Kafka: a producer UI where
 you send telemetry events from the browser and a consumer UI where you watch them arrive live.
 Introduces Spring Boot, `@KafkaListener`, SSE streaming, and Server-Sent Events — without the
-complexity of the full streaming-enhancements stack.
+complexity of the full multi-consumer platform.
 
 ```text
 producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
