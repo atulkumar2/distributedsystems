@@ -1,8 +1,11 @@
 # Vehicle Telemetry Kafka Learning Repo
 
-Four self-contained Java + Apache Kafka learning projects built around the same vehicle telemetry
-domain. The repo progresses from plain Java Kafka clients to Spring Boot web apps, then to
-multi-consumer streaming architectures with alerting, storage, and DLQ handling.
+Four Java + Apache Kafka learning projects built around the same vehicle telemetry domain. The repo
+progresses from plain Java Kafka clients to Spring Boot web apps, then to multi-consumer streaming
+architectures with alerting, storage, and DLQ handling.
+
+All stages now share a common infra stack in [`infra/`](./infra/): Kafka, Kafka UI, and Portainer
+run on a shared Docker network, while each stage starts only its own app containers.
 
 ## Repo layout
 
@@ -12,6 +15,7 @@ multi-consumer streaming architectures with alerting, storage, and DLQ handling.
 | [`kj-02-web/`](./kj-02-web/) | 2 | Spring Boot producer and consumer web apps with live SSE streaming | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-02-web/run.sh) |
 | [`kj-03-multicons-base/`](./kj-03-multicons-base/) | 3 | Multi-consumer platform with storage and alert dashboards, DLQ producer, and always-on simulator | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-03-multicons-base/run.sh) |
 | [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) | 4 | Advanced multi-consumer platform with retry-before-DLQ behavior and a dedicated DLQ viewer UI | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-04-multicons-adv/run.sh) |
+| [`infra/`](./infra/) | Shared | Common Kafka broker, Kafka UI, and Portainer for all stages | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/infra/run.sh) |
 
 ## What each stage teaches
 
@@ -23,6 +27,13 @@ multi-consumer streaming architectures with alerting, storage, and DLQ handling.
 | 4 | Failure handling and operations | retry with backoff, direct-vs-retry DLQ routing, DLQ inspection UI, lag simulation |
 
 ## Quick start
+
+### Shared infra
+
+```bash
+cd infra
+./run.sh --start
+```
 
 ### Stage 1: CLI Kafka example
 
@@ -54,15 +65,16 @@ cd kj-04-multicons-adv
 
 ## Ports
 
-Each stage is designed to be run on its own. Most stacks intentionally reuse the standard local
-Kafka and UI ports, so they will conflict if you start multiple stages at the same time.
+The shared infra owns the common Kafka and tooling ports. Stage stacks add only their own app UIs,
+so multiple stages can share the same broker if their app ports do not collide.
 
-| Stage | Kafka broker | Kafka UI | App UIs |
+| Stack | Kafka broker | Kafka UI | Portainer | App UIs |
 | --- | --- | --- | --- |
-| `kj-01-cli-base` | `9092` | `8080` | — |
-| `kj-02-web` | `9092` | `8080` | producer `8081`, consumer `8082` |
-| `kj-03-multicons-base` | `9092` | `8080` | producer `8081`, consumer `8082`, alert `8083`, storage `8084` |
-| `kj-04-multicons-adv` | `9092` | `8080` | producer `8081`, consumer `8082`, alert `8083`, storage `8084`, DLQ viewer `8085` |
+| `infra` | `9092` | `8080` | `9000` / `9443` | — |
+| `kj-01-cli-base` | shared | shared | shared | — |
+| `kj-02-web` | shared | shared | shared | producer `8081`, consumer `8082` |
+| `kj-03-multicons-base` | shared | shared | shared | producer `8081`, consumer `8082`, alert `8083`, storage `8084` |
+| `kj-04-multicons-adv` | shared | shared | shared | producer `8081`, consumer `8082`, alert `8083`, storage `8084`, DLQ viewer `8085` |
 
 ## Prerequisites
 

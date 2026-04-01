@@ -1,8 +1,8 @@
 # Streaming Enhancements
 
-**Step 4** — Full-stack vehicle telemetry Kafka platform. Five browser UIs, two stream-processing
+**Stage 4** — Full-stack vehicle telemetry Kafka platform. Five browser UIs, two stream-processing
 backends, a Dead-Letter Queue, an always-on vehicle fleet simulator, 8 real-time alert rules, and
-rolling file logs. All in one self-contained Docker Compose stack.
+rolling file logs. The stage apps run against the shared repo-level Kafka infrastructure.
 
 ---
 
@@ -115,7 +115,7 @@ instead of an auto-assigned random UUID.
 kj-04-multicons-adv/
 ├── pom.xml                  ← parent POM (10 modules)
 ├── run.sh
-├── docker-compose.yml       ← Kafka + Kafka UI + all 5 app services
+├── docker-compose.yml       ← all 5 app services attached to the shared Kafka network
 ├── README.md
 ├── model/                   ← TelemetryEvent, DlqEvent (shared POJOs)
 ├── util/                    ← JsonUtil (singleton ObjectMapper)
@@ -152,8 +152,9 @@ Slow mode for lag simulation:
 
 This starts:
 
-- Kafka (port `9092` on host)
+- Shared Kafka broker on `localhost:9092` if it is not already running
 - Kafka UI at <http://localhost:8080>
+- Portainer at <http://localhost:9000>
 - **Producer UI** at <http://localhost:8081> — send events or start the always-on simulator
 - **Consumer UI** at <http://localhost:8082> — watch events arrive live via SSE
 - **Alert Consumer UI** at <http://localhost:8083> — real-time 8-rule alert feed

@@ -42,13 +42,16 @@ kj-01-cli-base/
 - Maven wrapper included — no separate Maven installation needed (runs Maven 4.0.0 via `./mvnw`)
 - Docker with `docker compose` for the local Kafka stack
 
-## Run Kafka locally with Docker Compose
+## Shared local infrastructure
 
-The `docker-compose.yml` starts Kafka (KRaft, single node) and the
-[Kafka UI dashboard](https://github.com/provectus/kafka-ui) in one command:
+Kafka, Kafka UI, and Portainer now run from the repo-level [`infra/`](../infra/) stack.
+`./run.sh --start` brings that shared infrastructure up automatically before compiling this module.
+
+You can also start the shared infra directly:
 
 ```bash
-docker compose up -d
+cd ../infra
+./run.sh --start
 ```
 
 This starts:
@@ -56,11 +59,13 @@ This starts:
 - **Kafka** on `localhost:9092` (for the Java app on your host)
 - **Kafka UI** at [http://localhost:8080](http://localhost:8080) — browse topics, partitions, offsets,
   consumer groups, and live messages in a web browser
+- **Portainer** at [http://localhost:9000](http://localhost:9000) — inspect the local Docker stack
 
 Stop everything:
 
 ```bash
-docker compose down
+cd ../infra
+./run.sh --stop
 ```
 
 > **Note:** if you already have a `kafka-local` container running from a
@@ -172,7 +177,7 @@ Offsets committed manually for latest processed batch.
 
 ## End-to-end test flow
 
-1. Start Kafka with `./run.sh --start` or `docker compose up -d`.
+1. Start shared infra with `./run.sh --start` or `cd ../infra && ./run.sh --start`.
 2. Create topic `vehicle-telemetry` if needed (the helper script already does this).
 3. Run one consumer (`./mvnw exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaConsumerExample`) in terminal A.
 4. Run producer (`./mvnw exec:java -Dexec.mainClass=com.example.telematics.producer.KafkaProducerExample`) in terminal B.

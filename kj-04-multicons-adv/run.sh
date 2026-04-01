@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# Stage 4 helper script.
+# Services started by this script:
+# - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
+# - telemetry-producer on localhost:8081
+# - telemetry-consumer on localhost:8082
+# - telemetry-alert-consumer on localhost:8083
+# - telemetry-storage-consumer on localhost:8084
+# - telemetry-dlq-viewer on localhost:8085
+
 BOLD=$(tput bold 2>/dev/null || true)
 RESET=$(tput sgr0 2>/dev/null || true)
 CYAN=$(tput setaf 6 2>/dev/null || true)
@@ -17,18 +25,20 @@ error()   { echo "  ${RED}✖${RESET}  $*"; exit 1; }
 url()     { echo "  ${BOLD}${CYAN}$*${RESET}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
+KAFKA_CONTAINER="kafka-shared"
 STACK_CONTAINERS=(
-  kafka-streaming
-  kafka-ui-streaming
   telemetry-storage-consumer
   telemetry-alert-consumer
   telemetry-dlq-viewer
-  telemetry-producer-app
-  telemetry-consumer-app
+  telemetry-producer
+  telemetry-consumer
 )
-BLOCKER_PORTS=(9092 8080 8081 8082 8083 8084 8085)
+BLOCKER_PORTS=(8081 8082 8083 8084 8085)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
+LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
 usage() {
   cat <<'EOF'
@@ -38,7 +48,7 @@ Usage: ./run.sh --start [--slow] [--detach|-d]
        ./run.sh --help
 
 Options:
-  --start          Start the full stack
+  --start          Start the app stack against shared infra
   --slow           Enable SLOW_MODE on storage-consumer (used with --start)
   --detach, -d     Start containers in the background (used with --start)
   --stop           Stop and remove the Docker Compose stack for this project
@@ -50,6 +60,7 @@ EOF
 ensure_prereqs() {
   command -v docker > /dev/null 2>&1 || error "docker not found. Please install Docker Desktop or Docker Engine."
   [[ -f "$COMPOSE_FILE" ]] || error "docker-compose.yml not found in project root."
+  [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
   docker compose version > /dev/null 2>&1 || error "'docker compose' (v2) not available. Install the Compose plugin."
   docker info > /dev/null 2>&1 || error "Docker daemon is not running."
 }
@@ -77,7 +88,7 @@ stop_port_blockers() {
 stop_blockers() {
   ensure_prereqs
   header "Stopping blockers"
-  for cname in "${STACK_CONTAINERS[@]}"; do
+  for cname in "${STACK_CONTAINERS[@]}" "${LEGACY_CONTAINERS[@]}"; do
     remove_container_if_present "$cname"
   done
   stop_port_blockers
@@ -95,6 +106,7 @@ show_next_steps() {
   url "  http://localhost:8084        Storage Consumer    — in-memory event store + SSE feed"
   url "  http://localhost:8085        DLQ Viewer          — inspect failed events with metadata"
   url "  http://localhost:8080        Kafka UI            — topics, partitions, consumer lag"
+  url "  http://localhost:9000        Portainer           — inspect containers and volumes"
   echo ""
 
   if [[ "$HOST_IP" != "YOUR_HOST_IP" && "$HOST_IP" != "127.0.0.1" ]]; then
@@ -160,9 +172,6 @@ show_next_steps() {
   echo "  Stop the stack:"
   echo "    ./run.sh --stop"
   echo ""
-  echo "  Stop and remove volumes (full reset):"
-  echo "    docker compose -f \"$COMPOSE_FILE\" down -v"
-  echo ""
 }
 
 start_stack() {
@@ -185,6 +194,12 @@ start_stack() {
   echo ""
 
   local cname proj
+  for cname in "${LEGACY_CONTAINERS[@]}"; do
+    if docker inspect "$cname" > /dev/null 2>&1; then
+      warn "Removing legacy container '$cname' before starting shared infra..."
+      docker rm -f "$cname" > /dev/null
+    fi
+  done
   for cname in "${STACK_CONTAINERS[@]}"; do
     if docker inspect "$cname" > /dev/null 2>&1; then
       proj=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$cname" 2>/dev/null || true)
@@ -193,6 +208,17 @@ start_stack() {
         docker rm -f "$cname" > /dev/null
       fi
     fi
+  done
+
+  docker compose -f "$INFRA_COMPOSE_FILE" up -d
+
+  local retries=45
+  until docker exec "$KAFKA_CONTAINER" \
+          /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:29092 \
+          > /dev/null 2>&1; do
+    retries=$((retries - 1))
+    [[ $retries -le 0 ]] && error "Shared Kafka broker did not become ready in time."
+    sleep 1
   done
 
   SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build $detach

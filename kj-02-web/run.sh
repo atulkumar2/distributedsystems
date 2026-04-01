@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── Colours ───────────────────────────────────────────────────────────────────
+# Stage 2 helper script.
+# Services started by this script:
+# - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
+# - telemetry-producer on localhost:8081
+# - telemetry-consumer on localhost:8082
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
@@ -10,21 +15,25 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
-KAFKA_CONTAINER="kafka-web"
+INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
+KAFKA_CONTAINER="kafka-shared"
 KAFKA_BROKER="localhost:9092"
 PRODUCER_URL="http://localhost:8081"
 CONSUMER_URL="http://localhost:8082"
 KAFKA_UI_URL="http://localhost:8080"
-STACK_CONTAINERS=(kafka-web kafka-ui-web telemetry-producer telemetry-consumer)
-BLOCKER_PORTS=(9092 8080 8081 8082)
+PORTAINER_URL="http://localhost:9000"
+STACK_CONTAINERS=(telemetry-producer telemetry-consumer)
+BLOCKER_PORTS=(8081 8082)
+LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
 usage() {
   cat <<'EOF'
 Usage: ./run.sh [option]
 
 Options:
-  --start          Start Kafka, Kafka UI, producer app, and consumer app
+  --start          Start shared infra, producer app, and consumer app
   --stop           Stop and remove the Docker Compose stack for this project
   --stop-blockers  Stop/remove Docker containers that would block --start
   --help           Show this help
@@ -34,6 +43,7 @@ EOF
 ensure_prereqs() {
   command -v docker > /dev/null 2>&1 || error "Docker is not installed or not on PATH."
   [[ -f "$COMPOSE_FILE" ]] || error "docker-compose.yml not found in project root."
+  [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
   docker compose version > /dev/null 2>&1 || error "Docker Compose is not available."
   docker info > /dev/null 2>&1 || error "Docker daemon is not running."
 }
@@ -61,7 +71,7 @@ stop_port_blockers() {
 stop_blockers() {
   ensure_prereqs
   info "Stopping Docker blockers for this project..."
-  for cname in "${STACK_CONTAINERS[@]}"; do
+  for cname in "${STACK_CONTAINERS[@]}" "${LEGACY_CONTAINERS[@]}"; do
     remove_container_if_present "$cname"
   done
   stop_port_blockers
@@ -71,11 +81,15 @@ stop_blockers() {
 start_stack() {
   ensure_prereqs
 
-  info "Starting Kafka, Kafka UI, producer app, and consumer app..."
+  info "Starting shared infra, producer app, and consumer app..."
 
-  # If containers with the same names exist from a different project, remove them
-  # first so docker compose can recreate them cleanly here.
   local cname proj
+  for cname in "${LEGACY_CONTAINERS[@]}"; do
+    if docker inspect "$cname" > /dev/null 2>&1; then
+      warn "Removing legacy container '$cname' before starting shared infra..."
+      docker rm -f "$cname" > /dev/null
+    fi
+  done
   for cname in "${STACK_CONTAINERS[@]}"; do
     if docker inspect "$cname" > /dev/null 2>&1; then
       proj=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$cname" 2>/dev/null || true)
@@ -86,6 +100,7 @@ start_stack() {
     fi
   done
 
+  docker compose -f "$INFRA_COMPOSE_FILE" up -d
   docker compose -f "$COMPOSE_FILE" up -d --build
 
   info "Waiting for Kafka broker to be ready..."
@@ -107,6 +122,7 @@ start_stack() {
   echo -e "  ${CYAN}Producer app${NC} →  $PRODUCER_URL"
   echo -e "  ${CYAN}Consumer app${NC} →  $CONSUMER_URL"
   echo -e "  ${CYAN}Kafka UI${NC}     →  $KAFKA_UI_URL"
+  echo -e "  ${CYAN}Portainer${NC}    →  $PORTAINER_URL"
   echo -e "  ${CYAN}Kafka broker${NC} →  $KAFKA_BROKER"
   echo ""
   echo -e "  Follow logs:"
@@ -119,7 +135,7 @@ start_stack() {
 
 stop_stack() {
   ensure_prereqs
-  info "Stopping Kafka, Kafka UI, producer app, and consumer app..."
+  info "Stopping producer app and consumer app..."
   docker compose -f "$COMPOSE_FILE" down
   success "Project stack stopped."
 }

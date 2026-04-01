@@ -1,6 +1,6 @@
 # Vehicle Telemetry — Web App Setup
 
-**Step 2** of three setups in this repo. Two Spring Boot apps wired to Kafka: a producer UI where
+**Stage 2** of four setups in this repo. Two Spring Boot apps wired to Kafka: a producer UI where
 you send telemetry events from the browser and a consumer UI where you watch them arrive live.
 Introduces Spring Boot, `@KafkaListener`, SSE streaming, and Server-Sent Events — without the
 complexity of the full multi-consumer platform.
@@ -10,14 +10,15 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
    :8081                                            :8082
 ```
 
-> **Note — port assignments:** This setup now uses the standard local ports where possible.
-> That makes local defaults simpler, but it also means it will conflict with
-> `kafka-java-basic-cli` if both stacks are started at the same time.
+> **Note — shared infra:** Kafka, Kafka UI, and Portainer now run from the repo-level
+> [`infra/`](../infra/) stack. `./run.sh --start` brings that shared infra up first, then
+> starts just the producer and consumer apps for this stage.
 >
-> | Service | `kafka-java-basic-cli/` | `kafka-java-web-apps/` |
+> | Service | `infra/` | `kj-02-web/` |
 > | --- | --- | --- |
-> | Kafka broker (host) | `9092` | `9092` |
-> | Kafka UI | `8080` | `8080` |
+> | Kafka broker (host) | `9092` | shared |
+> | Kafka UI | `8080` | shared |
+> | Portainer | `9000` / `9443` | shared |
 > | Producer / Consumer | — | `8081` / `8082` |
 
 ## Quick start (Docker — everything in one command)
@@ -31,6 +32,7 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
 | [http://localhost:8081](http://localhost:8081) | Producer — compose and send telemetry events |
 | [http://localhost:8082](http://localhost:8082) | Consumer — live stream of incoming events |
 | [http://localhost:8080](http://localhost:8080) | Kafka UI — explore topics, partitions, offsets |
+| [http://localhost:9000](http://localhost:9000) | Portainer — inspect the shared local Docker stack |
 
 The topic `vehicle-telemetry` is created automatically on first use (`KAFKA_AUTO_CREATE_TOPICS_ENABLE=true`).
 
@@ -42,13 +44,13 @@ Stop everything:
 
 ## Standalone (no Docker for the apps)
 
-Start only Kafka and Kafka UI:
+Start only the shared infra:
 
 ```bash
-docker compose up kafka kafka-ui
+cd ../infra && ./run.sh --start
 ```
 
-Then run the apps in separate terminals from the `kafka-java-web-apps/` directory:
+Then run the apps in separate terminals from the `kj-02-web/` directory:
 
 ```bash
 # Terminal 1 — producer on http://localhost:8081
@@ -78,16 +80,16 @@ cd consumer-app && mvn spring-boot:run
 ## Project structure
 
 ```text
-kafka-java-web-apps/
+kj-02-web/
 ├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 17) — 3 modules
 ├── run.sh
-├── docker-compose.yml       orchestrates Kafka + Kafka UI + both apps
+├── docker-compose.yml       orchestrates the stage app containers on the shared Kafka network
 ├── telemetry-model/         shared library module
 │   ├── pom.xml
 │   └── src/main/java/…/model/
 │       └── TelemetryEvent.java   single source of truth for the POJO
 ├── producer-app/
-│   ├── Dockerfile           multi-stage; build context is kafka-java-web-apps/
+│   ├── Dockerfile           multi-stage; build context is kj-02-web/
 │   ├── pom.xml              depends on telemetry-model
 │   └── src/main/
 │       ├── java/…/producer/
@@ -98,7 +100,7 @@ kafka-java-web-apps/
 │           ├── application.properties
 │           └── static/index.html        (vanilla HTML/JS form)
 └── consumer-app/
-    ├── Dockerfile           multi-stage; build context is kafka-java-web-apps/
+    ├── Dockerfile           multi-stage; build context is kj-02-web/
     ├── pom.xml
     └── src/main/
         ├── java/…/consumer/
@@ -122,7 +124,7 @@ kafka-java-web-apps/
 
 ## Next steps
 
-For a full streaming platform, step up to **[kafka-java-web-multi-consumer/](../kafka-java-web-multi-consumer/)**, which adds:
+For a full streaming platform, step up to **[kj-03-multicons-base/](../kj-03-multicons-base/)**, which adds:
 
 - Two additional consumer services (alert + storage) each with their own dashboards
 - 8 real-time alert rules with severity classification

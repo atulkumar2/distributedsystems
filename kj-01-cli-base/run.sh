@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ── Colours ───────────────────────────────────────────────────────────────────
+# Stage 1 helper script.
+# Services started by this script:
+# - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
+# - no stage-specific containers; this script ensures the learning topic exists and compiles the CLI module
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
@@ -10,20 +14,23 @@ warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
 TOPIC="vehicle-telemetry"
 PARTITIONS=3
 BROKER="localhost:9092"
-STACK_CONTAINERS=(kafka-local kafka-ui)
-BLOCKER_PORTS=(9092 8080)
+INFRA_CONTAINER="kafka-shared"
+STACK_CONTAINERS=(kafka-shared kafka-ui-shared portainer-shared)
+BLOCKER_PORTS=(9092 8080 9000 9443)
+LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
 usage() {
   cat <<'EOF'
 Usage: ./run.sh [option]
 
 Options:
-  --start          Start Kafka + Kafka UI, ensure topic exists, and compile the project
-  --stop           Stop and remove the Docker Compose stack for this project
+  --start          Start shared infra, ensure topic exists, and compile the project
+  --stop           Stop and remove the shared infra stack
   --stop-blockers  Stop/remove Docker containers that would block --start
   --help           Show this help
 EOF
@@ -37,6 +44,7 @@ ensure_prereqs() {
 ensure_start_prereqs() {
   ensure_prereqs
   [[ -x "$SCRIPT_DIR/mvnw" ]] || error "Maven wrapper (mvnw) not found in project root."
+  [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
 }
 
 remove_container_if_present() {
@@ -62,7 +70,7 @@ stop_port_blockers() {
 stop_blockers() {
   ensure_prereqs
   info "Stopping Docker blockers for this project..."
-  for cname in "${STACK_CONTAINERS[@]}"; do
+  for cname in "${STACK_CONTAINERS[@]}" "${LEGACY_CONTAINERS[@]}"; do
     remove_container_if_present "$cname"
   done
   stop_port_blockers
@@ -72,26 +80,20 @@ stop_blockers() {
 start_stack() {
   ensure_start_prereqs
 
-  info "Starting Kafka + Kafka UI via Docker Compose..."
-
-  # If a container with the same name exists from a different project (stale / orphaned),
-  # remove it first so docker compose can recreate it cleanly.
-  for cname in "${STACK_CONTAINERS[@]}"; do
+  info "Starting shared infra via Docker Compose..."
+  for cname in "${LEGACY_CONTAINERS[@]}"; do
     if docker inspect "$cname" > /dev/null 2>&1; then
-      proj=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$cname" 2>/dev/null || true)
-      if [[ "$proj" != "$SCRIPT_DIR" ]]; then
-        warn "Removing stale container '$cname' (from a different project)..."
-        docker rm -f "$cname" > /dev/null
-      fi
+      warn "Removing legacy container '$cname' before starting shared infra..."
+      docker rm -f "$cname" > /dev/null
     fi
   done
 
-  docker compose -f "$COMPOSE_FILE" up -d
+  docker compose -f "$INFRA_COMPOSE_FILE" up -d
 
   info "Waiting for Kafka broker to be ready..."
   local retries=30
-  until docker exec kafka-local \
-          /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server "$BROKER" \
+  until docker exec "$INFRA_CONTAINER" \
+          /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:29092 \
           > /dev/null 2>&1; do
     retries=$((retries - 1))
     [[ $retries -le 0 ]] && error "Kafka broker did not become ready in time."
@@ -101,16 +103,16 @@ start_stack() {
 
   info "Ensuring topic '$TOPIC' exists ($PARTITIONS partitions)..."
   local existing
-  existing=$(docker exec kafka-local \
-    /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server "$BROKER" 2>/dev/null \
+  existing=$(docker exec "$INFRA_CONTAINER" \
+    /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:29092 2>/dev/null \
     | grep -x "$TOPIC" || true)
 
   if [[ -z "$existing" ]]; then
-    docker exec kafka-local \
+    docker exec "$INFRA_CONTAINER" \
       /opt/kafka/bin/kafka-topics.sh \
       --create \
       --topic "$TOPIC" \
-      --bootstrap-server "$BROKER" \
+      --bootstrap-server localhost:29092 \
       --partitions "$PARTITIONS" \
       --replication-factor 1
     success "Topic '$TOPIC' created."
@@ -128,17 +130,18 @@ start_stack() {
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
   echo -e "  ${CYAN}Kafka UI${NC}     →  http://localhost:8080"
+  echo -e "  ${CYAN}Portainer${NC}    →  http://localhost:9000"
   echo -e "  ${CYAN}Kafka broker${NC} →  $BROKER"
   echo -e "  ${CYAN}Topic${NC}        →  $TOPIC ($PARTITIONS partitions)"
   echo ""
   echo -e "  Run producer:"
-  echo -e "    ${YELLOW}mvn exec:java -Dexec.mainClass=com.example.telematics.producer.KafkaProducerExample${NC}"
+  echo -e "    ${YELLOW}./mvnw exec:java -Dexec.mainClass=com.example.telematics.producer.KafkaProducerExample${NC}"
   echo ""
   echo -e "  Run consumer:"
-  echo -e "    ${YELLOW}mvn exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaConsumerExample${NC}"
+  echo -e "    ${YELLOW}./mvnw exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaConsumerExample${NC}"
   echo ""
   echo -e "  Run manual-commit consumer:"
-  echo -e "    ${YELLOW}mvn exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaManualCommitConsumerExample${NC}"
+  echo -e "    ${YELLOW}./mvnw exec:java -Dexec.mainClass=com.example.telematics.consumer.KafkaManualCommitConsumerExample${NC}"
   echo ""
   echo -e "  Stop everything:"
   echo -e "    ${YELLOW}./run.sh --stop${NC}"
@@ -147,9 +150,10 @@ start_stack() {
 
 stop_stack() {
   ensure_prereqs
-  info "Stopping Kafka + Kafka UI for this project..."
-  docker compose -f "$COMPOSE_FILE" down
-  success "Project stack stopped."
+  [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
+  info "Stopping shared infra for this project..."
+  docker compose -f "$INFRA_COMPOSE_FILE" down
+  success "Shared infra stack stopped."
 }
 
 ACTION="${1:-}"
