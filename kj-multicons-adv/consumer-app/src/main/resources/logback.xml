@@ -1,0 +1,53 @@
+<configuration>
+
+    <!-- ── CONSOLE ──────────────────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Rolling file: ALL consumer-app logs (Spring + Kafka logic) ───────── -->
+    <!-- Generic app-wide log — Spring startup, web endpoints, thread pool mgmt. -->
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/consumer-app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/consumer-app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── Rolling file: ONLY Kafka consumer / worker logic ─────────────────── -->
+    <!-- Focused log for ConsumerThreadPool and TelemetryConsumer — worker state, -->
+    <!-- crash events, partition assignments, message counts without Spring noise. -->
+    <appender name="CONSUMER_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/consumer-kafka.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/consumer-kafka.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Consumer package: additivity=true so events also flow to root (CONSOLE + APP_FILE) -->
+    <!-- CONSUMER_FILE gives a clean view of only Kafka poll/process/crash activity. -->
+    <logger name="com.example.telematics.consumer" level="INFO" additivity="true">
+        <appender-ref ref="CONSUMER_FILE"/>
+    </logger>
+
+    <!-- Root: all logs go to CONSOLE and the generic app-wide file -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+    </root>
+
+</configuration>

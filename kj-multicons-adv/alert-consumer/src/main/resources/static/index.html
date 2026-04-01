@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alert Consumer — Live Alert Feed</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.4rem; font-weight: 600; color: #e6edf3; margin-bottom: 4px; }
+    .subtitle { font-size: 0.82rem; color: #8b949e; margin-bottom: 24px; }
+
+    /* ── Metrics bar ──────────────────────────────────────────────────── */
+    .metrics {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 28px;
+      flex-wrap: wrap;
+    }
+    .metric-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 14px 20px;
+      min-width: 140px;
+      text-align: center;
+    }
+    .metric-card .label { font-size: 0.72rem; color: #8b949e; text-transform: uppercase; letter-spacing: .06em; }
+    .metric-card .value { font-size: 1.9rem; font-weight: 700; color: #58a6ff; margin-top: 4px; }
+    .metric-card.criticals .value { color: #ff4444; }
+    .metric-card.alerts    .value { color: #f85149; }
+    .metric-card.warnings  .value { color: #d29922; }
+    .metric-card.engine    .value { color: #f97316; }
+    .metric-card.sudden    .value { color: #a855f7; }
+    .metric-card.geofence  .value { color: #06b6d4; }
+    .metric-card.offline   .value { color: #94a3b8; }
+    .metric-card.rule-card .value { font-size: 1.4rem; }
+
+    /* ── Feed panel ───────────────────────────────────────────────────── */
+    .feed-panel {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 10px 16px;
+      background: #1c2128;
+      border-bottom: 1px solid #30363d;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; flex-shrink: 0; }
+    .dot.red { background: #f85149; }
+
+    /* ── Alert list ────────────────────────────────────────────────────── */
+    #alert-list {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+    .alert-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #21262d;
+      font-size: 0.82rem;
+      animation: fadeIn .25s ease;
+    }
+    .alert-row:last-child { border-bottom: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      min-width: 80px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .badge-critical { background: #4a0a0a; color: #ff4444; border: 2px solid #ff4444; }
+    .badge-alert    { background: #3d1a1a; color: #f85149; border: 1px solid #f85149; }
+    .badge-warning  { background: #2d2200; color: #d29922; border: 1px solid #d29922; }
+    .badge-ok       { background: #1a2d1a; color: #3fb950; border: 1px solid #3fb950; }
+
+    /* Rule tags — small pill beside the severity badge */
+    .rule-tag { display: inline-block; padding: 2px 7px; border-radius: 9999px;
+      font-size: 0.65rem; font-weight: 700; flex-shrink: 0; white-space: nowrap; }
+    .rt-critical-speed { background: #3d0000; color: #ff8080; }
+    .rt-critical-fuel  { background: #3d0000; color: #ffb3b3; }
+    .rt-overspeed      { background: #3d1a1a; color: #f85149; }
+    .rt-low-fuel       { background: #2d2200; color: #d29922; }
+    .rt-engine-anomaly { background: #2d1500; color: #f97316; }
+    .rt-sudden-change  { background: #1e0b33; color: #a855f7; }
+    .rt-geofence       { background: #0a2030; color: #06b6d4; }
+    .rt-vehicle-offline { background: #1a1a1a; color: #94a3b8; }
+    .rt-nominal        { background: #1a2d1a; color: #3fb950; }
+
+    .row-vehicle { color: #58a6ff; font-weight: 600; min-width: 80px; }
+    .row-speed   { color: #c9d1d9; }
+    .row-fuel    { color: #c9d1d9; }
+    .row-engine  { color: #94a3b8; font-size: 0.72rem; min-width: 42px; }
+    .row-time    { color: #484f58; font-size: 0.72rem; margin-left: auto; }
+
+    /* ── Thresholds legend ───────────────────────────────────────────── */
+    .legend {
+      margin-top: 20px;
+      display: flex;
+      gap: 20px;
+      font-size: 0.78rem;
+      color: #484f58;
+    }
+    .legend span { color: #8b949e; }
+
+    /* ── Status bar ───────────────────────────────────────────────────── */
+    #status-bar { margin-top: 12px; font-size: 0.78rem; color: #484f58; }
+    #conn-status { font-weight: 600; }
+    #conn-status.connected    { color: #3fb950; }
+    #conn-status.disconnected { color: #f85149; }
+  </style>
+</head>
+<body>
+
+  <h1>Alert Consumer Dashboard</h1>
+  <p class="subtitle">Live alert feed via auto-commit Kafka consumer &middot; Kafka fan-out from vehicle-telemetry topic &middot; 7 detection rules &middot; port 8086</p>
+
+  <!-- Metrics -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="label">Processed</div>
+      <div class="value" id="m-processed">–</div>
+    </div>
+    <div class="metric-card criticals rule-card">
+      <div class="label">&#128308; Critical</div>
+      <div class="value" id="m-criticals">–</div>
+    </div>
+    <div class="metric-card alerts">
+      <div class="label">Alerts (100–120 km/h)</div>
+      <div class="value" id="m-alerts">–</div>
+    </div>
+    <div class="metric-card warnings">
+      <div class="label">Warnings (fuel 10–20%)</div>
+      <div class="value" id="m-warnings">–</div>
+    </div>
+    <div class="metric-card engine rule-card">
+      <div class="label">&#128296; Engine Anomaly</div>
+      <div class="value" id="m-engine">–</div>
+    </div>
+    <div class="metric-card sudden rule-card">
+      <div class="label">&#128165; Sudden Change</div>
+      <div class="value" id="m-sudden">–</div>
+    </div>
+    <div class="metric-card geofence rule-card">
+      <div class="label">&#128205; Geofence</div>
+      <div class="value" id="m-geofence">–</div>
+    </div>
+    <div class="metric-card offline rule-card">
+      <div class="label">&#128244; Offline</div>
+      <div class="value" id="m-offline">–</div>
+    </div>
+  </div>
+
+  <!-- Live alert feed -->
+  <div class="feed-panel">
+    <div class="panel-header">
+      <span class="dot" id="sse-dot"></span>
+      Live Alert Stream
+    </div>
+    <div id="alert-list">
+      <div style="padding:16px;color:#484f58;font-size:0.82rem;">Connecting to alert stream…</div>
+    </div>
+  </div>
+
+  <!-- Thresholds legend -->
+  <div class="legend">
+    <div>🔴 CRITICAL: speed &gt; 120 km/h &middot; fuel &lt; 10%</div>
+    <div>🟠 ALERT: speed 100–120 km/h</div>
+    <div>🟡 WARNING: fuel 10–20% &middot; engine anomaly &middot; sudden change (&gt;40 km/h) &middot; geofence breach &middot; vehicle offline (&gt;10 s silence)</div>
+    <div>🟢 OK: all thresholds nominal</div>
+  </div>
+
+  <div id="status-bar">
+    SSE: <span id="conn-status" class="disconnected">disconnected</span>
+    &nbsp;·&nbsp; Last update: <span id="last-update">–</span>
+  </div>
+
+<script>
+  const MAX_ROWS = 80;
+
+  // ── Metrics polling ────────────────────────────────────────────────────────
+  function fetchMetrics() {
+    fetch('/api/metrics')
+      .then(r => r.json())
+      .then(m => {
+        document.getElementById('m-processed').textContent  = m.processed       ?? '–';
+        document.getElementById('m-criticals').textContent  = m.criticals       ?? '–';
+        document.getElementById('m-alerts').textContent     = m.alerts          ?? '–';
+        document.getElementById('m-warnings').textContent   = m.warnings        ?? '–';
+        document.getElementById('m-engine').textContent     = m.engineAnomalies ?? '–';
+        document.getElementById('m-sudden').textContent     = m.suddenChanges   ?? '–';
+        document.getElementById('m-geofence').textContent   = m.geofence        ?? '–';
+        document.getElementById('m-offline').textContent    = m.offline          ?? '–';
+      })
+      .catch(() => {});
+  }
+  fetchMetrics();
+  setInterval(fetchMetrics, 2000);
+
+  // ── SSE live feed ──────────────────────────────────────────────────────────
+  const alertList = document.getElementById('alert-list');
+  const sseDot    = document.getElementById('sse-dot');
+  const connSpan  = document.getElementById('conn-status');
+  const lastUpd   = document.getElementById('last-update');
+
+  function setConnected(ok) {
+    connSpan.textContent = ok ? 'connected' : 'disconnected';
+    connSpan.className   = ok ? 'connected'  : 'disconnected';
+    sseDot.className     = ok ? 'dot'         : 'dot red';
+  }
+
+  function appendAlertRow(data) {
+    const type = data.type ?? 'OK';
+    const rule = data.rule ?? 'nominal';
+    const time = new Date().toLocaleTimeString();
+    lastUpd.textContent = time;
+
+    // Severity badge
+    let badgeClass, label;
+    if      (type === 'CRITICAL') { badgeClass = 'badge-critical'; label = '● CRITICAL'; }
+    else if (type === 'ALERT')    { badgeClass = 'badge-alert';    label = '● ALERT';    }
+    else if (type === 'WARNING')  { badgeClass = 'badge-warning';  label = '▲ WARNING';  }
+    else                          { badgeClass = 'badge-ok';       label = '✓ OK';       }
+
+    // Rule tag
+    const ruleClass = 'rt-' + rule.replace(/_/g, '-');
+    const ruleLabels = {
+      'critical-speed':  '🚨 Crit Speed',
+      'critical-fuel':   '⛽ Crit Fuel',
+      'overspeed':       '⚡ Overspeed',
+      'low-fuel':        '⛽ Low Fuel',
+      'engine-anomaly':  '🔧 Engine',
+      'sudden-change':   '💥 Sudden Chg',
+      'geofence':        '📍 Geofence',
+      'vehicle-offline': '📵 Offline',
+      'nominal':         '✓ Nominal'
+    };
+    const ruleLabel = ruleLabels[rule] ?? rule;
+
+    // Delta annotation (sudden-change only)
+    const delta = data.delta;
+    const deltaHtml = (delta != null && delta !== 0)
+      ? ` <span style="color:#a855f7;font-size:0.7rem">(${delta > 0 ? '+' : ''}${delta.toFixed(1)} km/h)</span>`
+      : '';
+
+    const engHtml = data.engineStatus
+      ? `<span class="row-engine">${data.engineStatus}</span>`
+      : '';
+
+    const row = document.createElement('div');
+    row.className = 'alert-row';
+    row.innerHTML =
+      `<span class="badge ${badgeClass}">${label}</span>` +
+      `<span class="rule-tag ${ruleClass}">${ruleLabel}</span>` +
+      `<span class="row-vehicle">${data.vehicleId ?? '–'}</span>` +
+      `<span class="row-speed">⚡ ${data.speed != null ? data.speed.toFixed(1) : '–'} km/h${deltaHtml}</span>` +
+      `<span class="row-fuel">⛽ ${data.fuelLevel != null ? data.fuelLevel.toFixed(1) : '–'}%</span>` +
+      (data.silentSeconds != null
+        ? `<span class="row-engine">silent ${data.silentSeconds}s</span>`
+        : engHtml) +
+      `<span class="row-time">${time}</span>`;
+
+    // Prepend newest at top
+    if (alertList.firstChild && alertList.firstChild.tagName === 'DIV'
+        && alertList.firstChild.style.color === 'rgb(72, 79, 88)') {
+      alertList.innerHTML = ''; // clear placeholder
+    }
+    alertList.insertBefore(row, alertList.firstChild);
+
+    // Bound list length
+    while (alertList.childElementCount > MAX_ROWS) {
+      alertList.removeChild(alertList.lastChild);
+    }
+  }
+
+  const es = new EventSource('/api/alerts/stream');
+
+  es.onopen = () => {
+    setConnected(true);
+    alertList.innerHTML = '';
+  };
+
+  es.onmessage = (e) => {
+    try {
+      appendAlertRow(JSON.parse(e.data));
+    } catch (_) {}
+  };
+
+  es.onerror = () => setConnected(false);
+</script>
+</body>
+</html>

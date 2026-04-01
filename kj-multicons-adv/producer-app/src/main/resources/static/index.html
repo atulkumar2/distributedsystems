@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telemetry Producer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-bottom: 2rem; }
+    .card { background: #1e293b; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; color: #cbd5e1; margin-bottom: 1rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    input, select { width: 100%; padding: 0.5rem 0.75rem; background: #0f172a; border: 1px solid #334155;
+      border-radius: 0.375rem; color: #e2e8f0; font-size: 0.875rem; }
+    input:focus, select:focus { outline: none; border-color: #38bdf8; }
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    button { padding: 0.5rem 1.25rem; border-radius: 0.375rem; font-size: 0.875rem;
+      font-weight: 600; cursor: pointer; border: none; transition: opacity 0.15s; }
+    button:hover { opacity: 0.85; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-secondary { background: #334155; color: #cbd5e1; }
+    .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #22c55e; color: #fff;
+      padding: 0.75rem 1.25rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast.error { background: #ef4444; }
+    .toast.show { opacity: 1; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th { text-align: left; padding: 0.5rem 0.75rem; color: #64748b; font-weight: 600;
+      border-bottom: 1px solid #334155; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 9999px; font-size: 0.7rem;
+      font-weight: 700; }
+    .badge-on { background: #14532d; color: #4ade80; }
+    .badge-idle { background: #1e3a5f; color: #60a5fa; }
+    .empty { color: #475569; text-align: center; padding: 2rem; font-size: 0.875rem; }
+    input[type=range] { accent-color: #0ea5e9; padding: 0; border: none; background: transparent; }
+    .progress-bar-wrap { background: #0f172a; border-radius: 9999px; height: 0.5rem; overflow: hidden; margin-top: 0.75rem; }
+    .progress-bar { height: 100%; background: #0ea5e9; transition: width 0.15s; border-radius: 9999px; }
+    .burst-status { font-size: 0.8rem; color: #94a3b8; margin-top: 0.4rem; min-height: 1.2rem; }
+    .btn-danger { background: #ef4444; color: #fff; }
+
+    /* ── Always-On Vehicle Panel ─────────────────────────────────────────────── */
+    .ao-grid { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+    .vbox { background: #0f172a; border: 1px solid #2d3f55; border-radius: 0.5rem;
+      padding: 0.75rem; width: 172px; flex-shrink: 0; transition: border-color 0.25s; }
+    .vbox:hover { border-color: #38bdf8; }
+    .vbox-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .vbox-id { font-size: 0.72rem; font-weight: 700; color: #e2e8f0; }
+    .state-pill { font-size: 0.58rem; font-weight: 700; padding: 0.15rem 0.45rem;
+      border-radius: 9999px; white-space: nowrap; }
+    /* State colours */
+    .sp-starting    { background:#0c4a6e; color:#38bdf8; }
+    .sp-cruising    { background:#14532d; color:#4ade80; }
+    .sp-accelerating { background:#052e16; color:#86efac; }
+    .sp-decelerating { background:#431407; color:#fb923c; }
+    .sp-sudden-brake { background:#450a0a; color:#f87171; }
+    .sp-sudden-acceleration { background:#2e1065; color:#c4b5fd; }
+    .sp-stopped     { background:#1e293b; color:#64748b; }
+    .sp-stopped-at-intersection { background:#422006; color:#fbbf24; }
+    .sp-paused      { background:#1e2d3d; color:#94a3b8; }
+    .sp-frozen      { background:#083344; color:#67e8f9; }
+    .sp-killed      { background:#1c1917; color:#57534e; }
+    .vbox-metric { margin-bottom: 0.35rem; }
+    .metric-row { display: flex; justify-content: space-between; }
+    .metric-label { font-size: 0.62rem; color: #64748b; }
+    .metric-val   { font-size: 0.68rem; color: #cbd5e1; }
+    .mini-bar { height: 3px; background: #1e293b; border-radius: 9999px; overflow: hidden; margin-top: 2px; }
+    .mini-fill { height: 100%; border-radius: 9999px; transition: width 0.6s ease; }
+    .speed-fill { background: #38bdf8; }
+    .fuel-fill  { background: #22c55e; }
+    .vbox-events { font-size: 0.62rem; color: #475569; margin: 0.35rem 0 0.5rem;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vbox-btns { display: flex; gap: 0.3rem; }
+    .vbtn { font-size: 0.68rem; padding: 0.25rem 0; border-radius: 0.25rem; cursor: pointer;
+      border: none; font-weight: 600; transition: opacity 0.15s; flex: 1; text-align: center; }
+    .vbtn:hover { opacity: 0.8; }
+    .vbtn-pause    { background: #1e3a5f; color: #93c5fd; }
+    .vbtn-resume   { background: #14532d; color: #4ade80; }
+    .vbtn-freeze   { background: #083344; color: #67e8f9; }
+    .vbtn-unfreeze { background: #422006; color: #fbbf24; }
+    .vbtn-kill     { background: #450a0a; color: #f87171; }
+    .vbtn-start    { background: #14532d; color: #4ade80; width: 100%; }
+    .ao-empty { color: #475569; font-size: 0.8rem; padding: 1rem 0; }
+  </style>
+</head>
+<body>
+
+  <h1>🚗 Telemetry Producer</h1>
+  <p class="subtitle">Send vehicle telemetry events to Kafka &rarr; topic: <code>vehicle-telemetry</code></p>
+
+  <div class="card">
+    <h2>Compose Event</h2>
+    <div class="grid">
+      <div>
+        <label for="vehicleId">Vehicle ID</label>
+        <select id="vehicleId">
+          <option disabled>Loading…</option>
+        </select>
+      </div>
+      <div>
+        <label for="engineStatus">Engine Status</label>
+        <select id="engineStatus">
+          <option value="ON">ON</option>
+          <option value="IDLE">IDLE</option>
+          <option value="OFF">OFF</option>
+        </select>
+      </div>
+      <div>
+        <label for="speed">Speed (km/h)</label>
+        <input type="number" id="speed" value="65" min="0" max="200" step="0.1">
+      </div>
+      <div>
+        <label for="fuelLevel">Fuel Level (%)</label>
+        <input type="number" id="fuelLevel" value="72" min="0" max="100" step="0.1">
+      </div>
+      <div>
+        <label for="latitude">Latitude</label>
+        <input type="number" id="latitude" value="12.9716" step="0.0001">
+      </div>
+      <div>
+        <label for="longitude">Longitude</label>
+        <input type="number" id="longitude" value="77.5946" step="0.0001">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="sendEvent()">Send Event</button>
+      <button class="btn-secondary" onclick="sendRandom()">&#x1F3B2; Randomise &amp; Send</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Burst Send</h2>
+    <div class="grid">
+      <div>
+        <label>Count: <strong id="burstCountDisplay">10</strong> events</label>
+        <input type="range" id="burstCount" min="1" max="500" value="10"
+               oninput="document.getElementById('burstCountDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label>Vehicles: <strong id="burstVehiclesDisplay">—</strong> — use first N vehicle IDs</label>
+        <input type="range" id="burstVehicles" min="1" max="100" value="100"
+               oninput="document.getElementById('burstVehiclesDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label for="burstDelay">Delay between events (ms) &mdash; 0 = server batch</label>
+        <input type="number" id="burstDelay" value="50" min="0" max="2000" step="10">
+      </div>
+      <div>
+        <label>Threads: <strong id="burstThreadsDisplay">1</strong> &mdash; parallel server-side workers (delay=0)</label>
+        <input type="range" id="burstThreads" min="1" max="16" value="1"
+               oninput="document.getElementById('burstThreadsDisplay').textContent=this.value">
+      </div>
+      <div>
+        <label>Fire &amp; Forget: <strong id="fafPctDisplay">0</strong>% of events &mdash;
+          those threads don't wait for Kafka ack</label>
+        <input type="range" id="fafPct" min="0" max="100" value="0" step="5"
+               oninput="document.getElementById('fafPctDisplay').textContent=this.value">
+      </div>
+    </div>
+    <div id="progressWrap" class="progress-bar-wrap" style="display:none">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+    </div>
+    <p class="burst-status" id="burstStatus"></p>
+    <div class="btn-row">
+      <button class="btn-primary" id="burstBtn" onclick="sendBurst()">&#9654; Send Burst</button>
+      <button class="btn-danger" id="stopBtn" onclick="stopBurst()" style="display:none">&#9646;&#9646; Stop</button>
+      <button class="btn-secondary" onclick="resetBurst()">&#8635; Reset</button>
+    </div>
+  </div>
+
+  <!-- ── Always-On Vehicles Panel ──────────────────────────────────────────── -->
+  <div class="card">
+    <h2>&#128663; Always-On Vehicles
+      <span id="aoActiveCount" style="font-size:0.8rem;color:#64748b;font-weight:400"></span>
+    </h2>
+    <div class="grid" style="align-items:end">
+      <div>
+        <label>Vehicles to activate: <strong id="aoCountDisplay">5</strong></label>
+        <input type="range" id="aoCount" min="1" max="40" value="5" step="1"
+               oninput="document.getElementById('aoCountDisplay').textContent=this.value">
+      </div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn-primary" onclick="activateVehicles()">&#9654; Activate</button>
+        <button class="btn-danger" id="aoDeactivateBtn" onclick="deactivateAll()" disabled>&#9746; Deactivate All</button>
+      </div>
+    </div>
+    <p class="burst-status" id="aoStatus"></p>
+    <div id="aoGrid" class="ao-grid">
+      <p class="ao-empty" id="aoEmpty">No always-on vehicles active. Choose a count and click Activate.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Sent Events (<span id="count">0</span>)</h2>
+    <div id="tableWrap">
+      <p class="empty" id="empty">No events sent yet.</p>
+      <table id="eventTable" style="display:none">
+        <thead><tr><th>Vehicle</th><th>Speed</th><th>Fuel</th><th>Engine</th><th>Timestamp</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let count = 0;
+    let isBursting = false;
+    let burstAborted = false;
+
+    function val(id) { return document.getElementById(id).value; }
+
+    async function sendEvent() {
+      const event = {
+        vehicleId: val('vehicleId'),
+        latitude: parseFloat(val('latitude')),
+        longitude: parseFloat(val('longitude')),
+        speed: parseFloat(val('speed')),
+        fuelLevel: parseFloat(val('fuelLevel')),
+        engineStatus: val('engineStatus')
+      };
+      try {
+        const res = await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(event)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        addRow({ ...event, timestamp: data.timestamp });
+        showToast('Sent ' + event.vehicleId);
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    async function sendRandom() {
+      try {
+        const res = await fetch('/api/events/random', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const event = await res.json();
+        addRow(event);
+        showToast('Sent ' + event.vehicleId);
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    function addRow(ev) {
+      count++;
+      document.getElementById('count').textContent = count;
+      document.getElementById('empty').style.display = 'none';
+      document.getElementById('eventTable').style.display = 'table';
+      const tbody = document.getElementById('tbody');
+      const badge = ev.engineStatus === 'ON' ? 'badge-on' : 'badge-idle';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${ev.vehicleId}</strong></td>
+        <td>${ev.speed.toFixed(1)} km/h</td>
+        <td>${ev.fuelLevel.toFixed(1)}%</td>
+        <td><span class="badge ${badge}">${ev.engineStatus}</span></td>
+        <td>${new Date(ev.timestamp).toLocaleTimeString()}</td>`;
+      tbody.insertBefore(tr, tbody.firstChild);
+      if (tbody.rows.length > 50) tbody.deleteRow(tbody.rows.length - 1);
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast' + (isError ? ' error' : '') + ' show';
+      setTimeout(() => t.className = 'toast', 2500);
+    }
+
+    async function sendBurst() {
+      if (isBursting) return;
+      const total        = parseInt(document.getElementById('burstCount').value);
+      const delay        = parseInt(document.getElementById('burstDelay').value) || 0;
+      const threads      = parseInt(document.getElementById('burstThreads').value) || 1;
+      const vehicleCount = parseInt(document.getElementById('burstVehicles').value) || 0;
+      isBursting   = true;
+      burstAborted = false;
+      document.getElementById('burstBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = '';
+      document.getElementById('progressWrap').style.display = '';
+      const bar    = document.getElementById('progressBar');
+      const status = document.getElementById('burstStatus');
+      bar.style.width = '0%';
+      let sent = 0;
+
+      if (delay === 0) {
+        // Fast path: single server-side batch call, events sent across `threads` threads
+        const fafPct = parseInt(document.getElementById('fafPct').value) || 0;
+        const url = '/api/events/burst?count=' + total + '&threads=' + threads + '&vehicleCount=' + vehicleCount + '&fireAndForgetPct=' + fafPct;
+        const fafLabel = fafPct > 0 ? ' (' + fafPct + '% fire \u0026 forget)' : '';
+        status.textContent = 'Sending ' + total + ' events across ' + threads + ' thread' + (threads > 1 ? 's' : '') + fafLabel + '\u2026';
+        try {
+          const res = await fetch(url, { method: 'POST' });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          // Add rows for tracked events; F&F events ran in background without results.
+          data.events.forEach(ev => addRow(ev));
+          const fnfCount = data.fireAndForget || 0;
+          if (fnfCount > 0) {
+            count += fnfCount;
+            document.getElementById('count').textContent = count;
+          }
+          sent = data.sent + fnfCount;
+          bar.style.width = '100%';
+        } catch (e) { showToast('Burst error: ' + e.message, true); }
+      } else {
+        // Paced path: one request per event so dashboards show a live stream
+        for (let i = 0; i < total; i++) {
+          if (burstAborted) break;
+          try {
+            const res = await fetch('/api/events/random?vehicleCount=' + vehicleCount, { method: 'POST' });
+            if (res.ok) {
+              const ev = await res.json();
+              addRow(ev);
+              sent++;
+              bar.style.width = Math.round((sent / total) * 100) + '%';
+              status.textContent = 'Sending\u2026 ' + sent + ' / ' + total;
+            }
+          } catch (_) { /* skip failed event */ }
+          if (i < total - 1) await sleep(delay);
+        }
+      }
+
+      isBursting   = false;
+      burstAborted = false;
+      document.getElementById('burstBtn').disabled = false;
+      document.getElementById('stopBtn').style.display = 'none';
+      status.textContent = 'Done \u2014 sent ' + sent + ' event' + (sent !== 1 ? 's' : '') + '.';
+      showToast('Burst complete: ' + sent + ' events sent');
+    }
+
+    function stopBurst() {
+      burstAborted = true;
+      document.getElementById('burstStatus').textContent = 'Stopping\u2026';
+    }
+
+    function resetBurst() {
+      if (isBursting) return;
+      const totalVehicles = parseInt(document.getElementById('burstVehicles').max) || 100;
+      const set = (id, val, displayId) => {
+        document.getElementById(id).value = val;
+        if (displayId) document.getElementById(displayId).textContent = val;
+      };
+      set('burstCount',   10,            'burstCountDisplay');
+      set('burstVehicles', totalVehicles, 'burstVehiclesDisplay');
+      set('burstDelay',   50);
+      set('burstThreads', 1,             'burstThreadsDisplay');
+      set('fafPct',       0,             'fafPctDisplay');
+      document.getElementById('progressWrap').style.display = 'none';
+      document.getElementById('progressBar').style.width = '0%';
+      document.getElementById('burstStatus').textContent = '';
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // ── Always-On Vehicle Panel ───────────────────────────────────────────────
+
+    let aoPolling = null;
+
+    async function activateVehicles() {
+      const count = parseInt(document.getElementById('aoCount').value) || 5;
+      document.getElementById('aoStatus').textContent = 'Activating ' + count + ' vehicle' + (count !== 1 ? 's' : '') + '\u2026';
+      try {
+        const res = await fetch('/api/alwayson/activate?count=' + count, { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const n = data.activated;
+        if (n === 0) {
+          document.getElementById('aoStatus').textContent = 'Already at target count — no new vehicles started.';
+        } else {
+          document.getElementById('aoStatus').textContent = n + ' vehicle' + (n !== 1 ? 's' : '') + ' activated.';
+        }
+        document.getElementById('aoDeactivateBtn').disabled = false;
+        startAoPolling();
+        refreshVehicleLists();
+      } catch (e) { showToast('Activate error: ' + e.message, true); }
+    }
+
+    async function deactivateAll() {
+      try {
+        await fetch('/api/alwayson/deactivate', { method: 'POST' });
+        stopAoPolling();
+        document.getElementById('aoGrid').innerHTML =
+          '<p class="ao-empty" id="aoEmpty">No always-on vehicles active. Choose a count and click Activate.</p>';
+        document.getElementById('aoActiveCount').textContent = '';
+        document.getElementById('aoStatus').textContent = 'All vehicles deactivated.';
+        document.getElementById('aoDeactivateBtn').disabled = true;
+        refreshVehicleLists();
+      } catch (e) { showToast('Deactivate error: ' + e.message, true); }
+    }
+
+    async function controlVehicle(vehicleId, action) {
+      try {
+        const res = await fetch('/api/alwayson/' + vehicleId + '/control?action=' + action, { method: 'POST' });
+        if (!res.ok) showToast('Control error: ' + (await res.text()), true);
+      } catch (e) { showToast('Error: ' + e.message, true); }
+    }
+
+    function startAoPolling() {
+      if (aoPolling) return;
+      aoPolling = setInterval(pollAoStatus, 1500);
+      pollAoStatus();
+    }
+
+    function stopAoPolling() {
+      if (aoPolling) { clearInterval(aoPolling); aoPolling = null; }
+    }
+
+    async function pollAoStatus() {
+      try {
+        const res = await fetch('/api/alwayson/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.activeCount > 0) {
+          document.getElementById('aoDeactivateBtn').disabled = false;
+          document.getElementById('aoActiveCount').textContent =
+            '\u2014 ' + data.activeCount + ' vehicle' + (data.activeCount !== 1 ? 's' : '');
+          renderVehicleBoxes(data.vehicles);
+          if (!aoPolling) startAoPolling();
+        }
+      } catch (_) {}
+    }
+
+    function renderVehicleBoxes(vehicles) {
+      const grid = document.getElementById('aoGrid');
+      // Remove the placeholder text once we have real boxes
+      const empty = document.getElementById('aoEmpty');
+      if (empty && vehicles.length > 0) empty.remove();
+
+      // Remove boxes no longer in the list
+      const incomingIds = new Set(vehicles.map(v => v.vehicleId));
+      [...grid.querySelectorAll('.vbox')].forEach(el => {
+        if (!incomingIds.has(el.dataset.vehicleId)) el.remove();
+      });
+
+      for (const v of vehicles) {
+        let box = grid.querySelector('[data-vehicle-id="' + v.vehicleId + '"]');
+        if (!box) {
+          box = document.createElement('div');
+          box.className = 'vbox';
+          box.dataset.vehicleId = v.vehicleId;
+          grid.appendChild(box);
+        }
+        updateVehicleBox(box, v);
+      }
+    }
+
+    function updateVehicleBox(box, v) {
+      const st       = v.state;                                   // e.g. SUDDEN_BRAKE
+      const stClass  = 'sp-' + st.toLowerCase().replace(/_/g, '-'); // e.g. sp-sudden-brake
+      const stLabel  = st.replace(/_/g, ' ');                    // e.g. SUDDEN BRAKE
+      const isKilled = st === 'KILLED';
+      const isPaused = st === 'PAUSED';
+      const isFrozen = st === 'FROZEN' || v.frozen;
+
+      const speedPct = Math.min(100, (v.speed / 160) * 100).toFixed(1);
+      const fuelPct  = Math.max(0, Math.min(100, v.fuelLevel)).toFixed(1);
+      const lastTime = v.lastEventAt ? new Date(v.lastEventAt).toLocaleTimeString() : '\u2014';
+
+      const pauseBtn   = `<button class="vbtn vbtn-${isPaused ? 'resume' : 'pause'}" onclick="controlVehicle('${v.vehicleId}','${isPaused ? 'resume' : 'pause'}')">${isPaused ? '\u25B6' : '\u23F8'}</button>`;
+      const freezeBtn  = `<button class="vbtn vbtn-${isFrozen ? 'unfreeze' : 'freeze'}" onclick="controlVehicle('${v.vehicleId}','${isFrozen ? 'unfreeze' : 'freeze'}')">${isFrozen ? '\uD83D\uDD25' : '\u2744'}</button>`;
+      const killBtn    = `<button class="vbtn vbtn-kill"  onclick="controlVehicle('${v.vehicleId}','kill')">&times;</button>`;
+      const startBtn   = `<button class="vbtn vbtn-start" onclick="controlVehicle('${v.vehicleId}','start')">&#9654; Start</button>`;
+
+      box.innerHTML = `
+        <div class="vbox-top">
+          <span class="vbox-id">${v.vehicleId}</span>
+          <span class="state-pill ${stClass}">${stLabel}</span>
+        </div>
+        <div class="vbox-metric">
+          <div class="metric-row">
+            <span class="metric-label">Speed</span>
+            <span class="metric-val">${v.speed} km/h</span>
+          </div>
+          <div class="mini-bar"><div class="mini-fill speed-fill" style="width:${speedPct}%"></div></div>
+        </div>
+        <div class="vbox-metric">
+          <div class="metric-row">
+            <span class="metric-label">Fuel</span>
+            <span class="metric-val">${v.fuelLevel}%</span>
+          </div>
+          <div class="mini-bar"><div class="mini-fill fuel-fill" style="width:${fuelPct}%"></div></div>
+        </div>
+        <div class="vbox-events">${v.eventCount} events &middot; ${lastTime}</div>
+        <div class="vbox-btns">
+          ${isKilled ? startBtn : pauseBtn + freezeBtn + killBtn}
+        </div>`;
+    }
+
+    // ── Shared vehicle-list refresh (used on page load + after activate/deactivate) ──
+
+    async function refreshVehicleLists() {
+      try {
+        const res = await fetch('/api/vehicles');
+        const ids = await res.json();
+        // Update compose dropdown
+        const sel = document.getElementById('vehicleId');
+        sel.innerHTML = ids.map(id => `<option value="${id}">${id}</option>`).join('');
+        // Update burst vehicles slider
+        const slider = document.getElementById('burstVehicles');
+        slider.max   = ids.length;
+        slider.value = ids.length;
+        document.getElementById('burstVehiclesDisplay').textContent = ids.length;
+        // Update always-on count slider max
+        const aoSlider = document.getElementById('aoCount');
+        const maxAo = Math.min(50, ids.length);
+        aoSlider.max = maxAo;
+        if (parseInt(aoSlider.value) > maxAo) {
+          aoSlider.value = maxAo;
+          document.getElementById('aoCountDisplay').textContent = maxAo;
+        }
+      } catch (_) {}
+    }
+
+    // Sync a slider's label from its current .value (handles browser form-state restoration
+    // on refresh, where the browser restores the slider position but not the <strong> text).
+    function syncLabel(sliderId, displayId) {
+      const val = document.getElementById(sliderId).value;
+      document.getElementById(displayId).textContent = val;
+    }
+
+    // On page load: sync labels, fetch vehicle lists, and check for any already-active
+    // always-on vehicles (e.g. after a page refresh without a server restart).
+    (async () => {
+      // Sync all burst labels first — covers browser form-state restoration on refresh.
+      syncLabel('burstCount',   'burstCountDisplay');
+      syncLabel('burstThreads', 'burstThreadsDisplay');
+      syncLabel('fafPct',       'fafPctDisplay');
+
+      // Populate compose dropdown + set burst/ao slider maxima
+      await refreshVehicleLists();
+
+      // Restore always-on panel if vehicles are already running
+      await pollAoStatus();
+    })();
+  </script>
+</body>
+</html>
