@@ -45,7 +45,7 @@ rolling file logs. All in one self-contained Docker Compose stack.
 ### 8 alert rules (Alert Consumer)
 
 | Priority | Rule | Condition | Type |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 | `critical-speed` | speed > 120 km/h | CRITICAL |
 | 2 | `overspeed` | speed > 100 km/h | ALERT |
 | 3 | `critical-fuel` | fuel < 10 % | CRITICAL |
@@ -187,7 +187,7 @@ SLOW_MODE=true java -jar storage-consumer/target/storage-consumer-*.jar
 Each service writes to both stdout (console) and its own rolling log files under `logs/`.
 
 | Service | Generic app log | Focused Kafka log |
-|---|---|---|
+| --- | --- | --- |
 | `producer-app` | `logs/producer-app.log` | `logs/producer-kafka.log` — only the `producer` package |
 | `consumer-app` | `logs/consumer-app.log` | `logs/consumer-kafka.log` — only the `consumer` package |
 | `alert-consumer` | `logs/alert-consumer.log` | — |
@@ -200,7 +200,7 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 ## What to Observe
 
 | What | Where to look |
-|---|---|
+| --- | --- |
 | Send manual events | <http://localhost:8081> → click **Randomise & Send** |
 | Start always-on simulator | <http://localhost:8081> → **Always-On Vehicles** → set count → Activate |
 | Live event stream | <http://localhost:8082> → events appear in real time via SSE |
@@ -233,14 +233,14 @@ All values live in `config/src/main/java/com/example/telematics/config/AppConfig
 Override at runtime via environment variables:
 
 | Env var | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
 | `SLOW_MODE` | `false` | Set `true` to sleep 200–500 ms per message in storage-consumer |
 
 Thresholds (change in source only):
 
 | Constant | Value | Rule triggered |
-|---|---|---|
+| --- | --- | --- |
 | `SPEED_ALERT_THRESHOLD` | 100 km/h | `overspeed` ALERT |
 | `SPEED_CRITICAL_THRESHOLD` | 120 km/h | `critical-speed` CRITICAL; also routes to DLQ in storage-consumer |
 | `FUEL_WARN_THRESHOLD` | 20 % | `low-fuel` WARNING |
@@ -256,7 +256,7 @@ Thresholds (change in source only):
 ## Real-world telematics mapping
 
 | This project | Real system |
-|---|---|
+| --- | --- |
 | `vehicle-telemetry` topic | MQTT broker / raw IoT ingest topic |
 | Storage Consumer | Time-series database writer (InfluxDB, TimescaleDB) |
 | Alert Consumer | Rules engine / CEP (Complex Event Processing) |

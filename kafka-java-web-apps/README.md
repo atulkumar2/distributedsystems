@@ -13,7 +13,7 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
 > **Note — port assignments:** These ports are chosen to avoid conflicts when `basic-cli/` is also running at the same time.
 >
 > | Service | `basic-cli/` | `web-apps/` |
-> |---|---|---|
+> | --- | --- | --- |
 > | Kafka broker (host) | `9092` | `9093` |
 > | Kafka UI | `8080` | `8083` |
 > | Producer / Consumer | — | `8081` / `8082` |
@@ -26,7 +26,7 @@ docker compose up --build
 ```
 
 | URL | What you see |
-|---|---|
+| --- | --- |
 | [http://localhost:8081](http://localhost:8081) | Producer — compose and send telemetry events |
 | [http://localhost:8082](http://localhost:8082) | Consumer — live stream of incoming events |
 | [http://localhost:8083](http://localhost:8083) | Kafka UI — explore topics, partitions, offsets |
@@ -111,7 +111,7 @@ web-apps/
 ## What to observe
 
 | What | Where to look |
-|---|---|
+| --- | --- |
 | Send events | <http://localhost:8081> → click **Randomise & Send** |
 | Live event stream | <http://localhost:8082> → events appear via SSE |
 | Topic messages with key/partition/offset | Kafka UI → Topics → vehicle-telemetry → Messages |

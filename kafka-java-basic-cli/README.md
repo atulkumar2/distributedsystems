@@ -96,7 +96,7 @@ Open [http://localhost:8080](http://localhost:8080) once the stack is up.
 Useful views for this project:
 
 | UI section | What to look at |
-|---|---|
+| --- | --- |
 | Topics → vehicle-telemetry | Partition count, message count per partition |
 | Topics → vehicle-telemetry → Messages | Live messages with key, value, partition, offset |
 | Consumers | `vehicle-telemetry-group` lag per partition |
@@ -172,7 +172,7 @@ Offsets committed manually for latest processed batch.
 ## How this maps to a real telematics architecture
 
 | This project | Real system |
-|---|---|
+| --- | --- |
 | Producer | Vehicle gateway / IoT ingestion API |
 | Kafka topic | Durable event backbone decoupling producers and consumers |
 | Auto-commit consumer | Analytics pipeline or dashboard feed |
