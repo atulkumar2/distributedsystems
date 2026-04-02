@@ -23,11 +23,11 @@ It extends the earlier web-based Kafka setup into a fuller operational learning 
 
 ### Application services
 
-- Producer UI on `8081`
-- Consumer UI on `8082`
-- Alert Consumer UI on `8083`
-- Storage Consumer UI on `8084`
-- DLQ Viewer UI on `8085`
+- Producer UI on `9501`
+- Consumer UI on `9502`
+- Alert Consumer UI on `9503`
+- Storage Consumer UI on `9504`
+- DLQ Viewer UI on `9505`
 
 ## Kafka topics
 
@@ -64,7 +64,7 @@ A dedicated `dlq-viewer` service is implemented.
 It:
 
 - consumes `vehicle-telemetry-dlq`
-- runs on `8085`
+- runs on `9505`
 - shows:
   - original event
   - error reason

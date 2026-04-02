@@ -1,5 +1,19 @@
 services:
-  # ── Storage Consumer UI (:8084) ──────────────────────────────────────────────
+  # ── Portal Hub (:9500) ──────────────────────────────────────────────────────
+  # Single landing page to open every portal in this stage from one place.
+  portal-hub:
+    build:
+      context: ..
+      dockerfile: web-apps/portal-hub/Dockerfile
+    container_name: telemetry-portal-hub
+    ports:
+      - "9500:80"
+    restart: on-failure
+    networks:
+      - default
+      - shared
+
+  # ── Storage Consumer UI (:9504) ──────────────────────────────────────────────
   # Reads vehicle-telemetry, stores events in memory, and backs the storage dashboard.
   # Set SLOW_MODE=true to simulate lag (observable in Kafka UI Consumer Groups tab).
   storage-consumer:
@@ -8,7 +22,7 @@ services:
       dockerfile: storage-consumer/Dockerfile
     container_name: telemetry-storage-consumer
     ports:
-      - "8084:8084"
+      - "9504:9504"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SLOW_MODE: "false"    # change to "true" to observe lag
@@ -17,7 +31,7 @@ services:
       - default
       - shared
 
-  # ── Alert Consumer UI (:8083) ────────────────────────────────────────────────
+  # ── Alert Consumer UI (:9503) ────────────────────────────────────────────────
   # Independent consumer group — receives the same messages as storage-consumer
   # (fan-out) and raises alerts for overspeed / low-fuel conditions.
   alert-consumer:
@@ -26,7 +40,7 @@ services:
       dockerfile: alert-consumer/Dockerfile
     container_name: telemetry-alert-consumer
     ports:
-      - "8083:8083"
+      - "9503:9503"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SLOW_MODE: "false"
@@ -35,7 +49,7 @@ services:
       - default
       - shared
 
-  # ── DLQ Viewer UI (:8085) ────────────────────────────────────────────────────
+  # ── DLQ Viewer UI (:9505) ────────────────────────────────────────────────────
   # Dedicated failed-event viewer for vehicle-telemetry-dlq.
   dlq-viewer:
     build:
@@ -43,7 +57,7 @@ services:
       dockerfile: dlq-viewer/Dockerfile
     container_name: telemetry-dlq-viewer
     ports:
-      - "8085:8085"
+      - "9505:9505"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     restart: on-failure
@@ -52,15 +66,15 @@ services:
       - shared
 
   # ── Producer Web App ──────────────────────────────────────────────────────────
-  # Spring Boot UI on port 8081 — send manual or random telemetry events via browser.
-  # Visit http://localhost:8081 after starting the stack.
+  # Spring Boot UI on port 9501 — send manual or random telemetry events via browser.
+  # Visit http://localhost:9501 after starting the stack.
   producer-app:
     build:
       context: .
       dockerfile: producer-app/Dockerfile
     container_name: telemetry-producer
     ports:
-      - "8081:8081"
+      - "9501:9501"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     restart: on-failure
@@ -69,15 +83,15 @@ services:
       - shared
 
   # ── Consumer Web App ──────────────────────────────────────────────────────────
-  # Spring Boot SSE UI on port 8082 — live display of events arriving from Kafka.
-  # Visit http://localhost:8082 after starting the stack.
+  # Spring Boot SSE UI on port 9502 — live display of events arriving from Kafka.
+  # Visit http://localhost:9502 after starting the stack.
   consumer-app:
     build:
       context: .
       dockerfile: consumer-app/Dockerfile
     container_name: telemetry-consumer
     ports:
-      - "8082:8082"
+      - "9502:9502"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     restart: on-failure

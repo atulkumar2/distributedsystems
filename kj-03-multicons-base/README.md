@@ -1,6 +1,6 @@
 # Streaming Enhancements
 
-**Stage 3** — Full-stack vehicle telemetry Kafka platform. Four browser UIs, two stream-processing
+**Stage 3** — Full-stack vehicle telemetry Kafka platform. One portal hub, four browser UIs, two stream-processing
 backends, a Dead-Letter Queue, an always-on vehicle fleet simulator, 8 real-time alert rules, and
 rolling file logs. The stage apps run against the shared repo-level Kafka infrastructure.
 
@@ -9,7 +9,7 @@ rolling file logs. The stage apps run against the shared repo-level Kafka infras
 ## Architecture
 
 ```text
-  [Producer UI :8081]          [Consumer UI :8082]
+  [Producer UI :9501]          [Consumer UI :9502]
   producer-app                 consumer-app
   - form / random send         - SSE live stream
   - AlwaysOnPool simulator     - configurable thread pool
@@ -34,7 +34,7 @@ rolling file logs. The stage apps run against the shared repo-level Kafka infras
  - retry 3× on failure        - SSE push to browser
  - speed > 120 → DLQ
  - SSE push to browser
- [Alert UI :8083]             [Storage UI :8084]
+ [Alert UI :9503]             [Storage UI :9504]
         │
         ▼
  ┌─────────────────────────┐
@@ -114,16 +114,17 @@ instead of an auto-assigned random UUID.
 kj-03-multicons-base/
 ├── pom.xml                  ← parent POM (9 modules)
 ├── run.sh
-├── docker-compose.yml       ← all 4 app services attached to the shared Kafka network
+├── docker-compose.yml       ← portal hub + all 4 app services attached to the shared Kafka network
 ├── README.md
 ├── model/                   ← TelemetryEvent, DlqEvent (shared POJOs)
 ├── util/                    ← JsonUtil (singleton ObjectMapper)
 ├── config/                  ← AppConfig (all constants + env-var overrides)
 ├── dlq-producer/            ← DlqProducer (shared Kafka producer for DLQ)
-├── alert-consumer/          ← Spring Boot UI :8083 — 8-rule alert dashboard + SSE feed
-├── storage-consumer/        ← Spring Boot UI :8084 — event store dashboard + SSE feed
-├── producer-app/            ← Spring Boot UI :8081 — send events + always-on simulator
-└── consumer-app/            ← Spring Boot UI :8082 — live event stream + thread pool demo
+├── ../web-apps/portal-hub/  ← Shared static launcher UI :9500 — discovers reachable dashboards
+├── alert-consumer/          ← Spring Boot UI :9503 — 8-rule alert dashboard + SSE feed
+├── storage-consumer/        ← Spring Boot UI :9504 — event store dashboard + SSE feed
+├── producer-app/            ← Spring Boot UI :9501 — send events + always-on simulator
+└── consumer-app/            ← Spring Boot UI :9502 — live event stream + thread pool demo
 ```
 
 ---
@@ -151,12 +152,13 @@ Slow mode for lag simulation:
 This starts:
 
 - Shared Kafka broker on `localhost:9092` if it is not already running
+- **Portal Hub** at <http://localhost:9500> — shared launcher that shows only reachable dashboards
 - Kafka UI at <http://localhost:8080>
 - Portainer at <http://localhost:9000>
-- **Producer UI** at <http://localhost:8081> — send events or start the always-on simulator
-- **Consumer UI** at <http://localhost:8082> — watch events arrive live via SSE
-- **Alert Consumer UI** at <http://localhost:8083> — real-time 8-rule alert feed
-- **Storage Consumer UI** at <http://localhost:8084> — in-memory event store table + SSE feed
+- **Producer UI** at <http://localhost:9501> — send events or start the always-on simulator
+- **Consumer UI** at <http://localhost:9502> — watch events arrive live via SSE
+- **Alert Consumer UI** at <http://localhost:9503> — real-time 8-rule alert feed
+- **Storage Consumer UI** at <http://localhost:9504> — in-memory event store table + SSE feed
 
 ### Option B — Run locally (Kafka must already be running)
 
@@ -214,16 +216,16 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 
 | What | Where to look |
 | --- | --- |
-| Send manual events | <http://localhost:8081> → click **Randomise & Send** |
-| Start always-on simulator | <http://localhost:8081> → **Always-On Vehicles** → set count → Activate |
-| Live event stream | <http://localhost:8082> → events appear in real time via SSE |
-| Crash / lag simulation | <http://localhost:8082> → configure thread pool with crash enabled |
-| Real-time 8-rule alert classifications | <http://localhost:8083> → alert feed |
-| Alert severity badges and rule tags | <http://localhost:8083> → CRITICAL / ALERT / WARNING / OK rows |
-| Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:8083> → metrics bar |
-| In-memory event store (latest state per vehicle) | <http://localhost:8084> → event store table |
-| Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:8084> → live feed panel |
-| Storage Consumer metrics | <http://localhost:8084> → metrics bar |
+| Send manual events | <http://localhost:9501> → click **Randomise & Send** |
+| Start always-on simulator | <http://localhost:9501> → **Always-On Vehicles** → set count → Activate |
+| Live event stream | <http://localhost:9502> → events appear in real time via SSE |
+| Crash / lag simulation | <http://localhost:9502> → configure thread pool with crash enabled |
+| Real-time 8-rule alert classifications | <http://localhost:9503> → alert feed |
+| Alert severity badges and rule tags | <http://localhost:9503> → CRITICAL / ALERT / WARNING / OK rows |
+| Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:9503> → metrics bar |
+| In-memory event store (latest state per vehicle) | <http://localhost:9504> → event store table |
+| Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:9504> → live feed panel |
+| Storage Consumer metrics | <http://localhost:9504> → metrics bar |
 | Both consumer groups receive same Kafka message | Kafka UI → Topics → vehicle-telemetry → Messages |
 | DLQ receives events with speed > 120 | Kafka UI → Topics → vehicle-telemetry-dlq |
 | Lag grows when SLOW_MODE=true | Kafka UI → Consumer Groups → telemetry-storage-group |
@@ -233,7 +235,7 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 ### Observing lag step by step
 
 1. Start all services normally
-2. Activate the always-on simulator with 5 vehicles from <http://localhost:8081>
+2. Activate the always-on simulator with 5 vehicles from <http://localhost:9501>
 3. Observe lag ≈ 0 (consumers keep up)
 4. Restart the stack with `./run.sh --start --slow --detach`
 5. Watch lag grow in Kafka UI → Consumer Groups → `telemetry-storage-group`

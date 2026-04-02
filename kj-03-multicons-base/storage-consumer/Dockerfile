@@ -37,5 +37,5 @@ COPY --from=builder /app/storage-consumer/target/storage-consumer-*.jar app.jar
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 ENV SLOW_MODE=false
 
-EXPOSE 8084
+EXPOSE 9504
 ENTRYPOINT ["java", "-jar", "app.jar"]

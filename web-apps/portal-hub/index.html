@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telemetry Portal Hub</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5d677a;
+      --line: rgba(23, 32, 51, 0.12);
+      --accent: #cd5c08;
+      --accent-soft: #fff1dc;
+      --shadow: 0 28px 60px rgba(23, 32, 51, 0.14);
+      --panel: rgba(255, 251, 245, 0.86);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(205, 92, 8, 0.18), transparent 24rem),
+        radial-gradient(circle at right, rgba(14, 116, 144, 0.16), transparent 22rem),
+        linear-gradient(160deg, #f7f1e7 0%, #ece6dc 52%, #e2ddd4 100%);
+      padding: 32px 20px 48px;
+    }
+    .shell { max-width: 1160px; margin: 0 auto; }
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font: 700 0.82rem/1.2 "Trebuchet MS", "Segoe UI", sans-serif;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 18px 0 10px;
+      font-size: clamp(2.3rem, 5vw, 4.6rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lede, .meta-copy {
+      margin: 0;
+      color: var(--muted);
+      font: 400 1rem/1.7 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+    .meta-copy { margin-top: 12px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .stat {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid rgba(23, 32, 51, 0.08);
+    }
+    .stat strong {
+      display: block;
+      font-size: 1.55rem;
+      margin-bottom: 4px;
+    }
+    .stat span {
+      color: var(--muted);
+      font: 600 0.82rem/1.4 "Trebuchet MS", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .section-title {
+      margin: 28px 0 12px;
+      font: 700 0.92rem/1.3 "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 22px;
+      border-radius: 24px;
+      background: rgba(255, 251, 245, 0.82);
+      border: 1px solid rgba(23, 32, 51, 0.08);
+      box-shadow: 0 18px 38px rgba(23, 32, 51, 0.08);
+      text-decoration: none;
+      color: inherit;
+      transform: translateY(18px);
+      opacity: 0;
+      animation: rise 0.45s ease forwards;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 24px 42px rgba(23, 32, 51, 0.14);
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -45% auto;
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(205, 92, 8, 0.22), transparent 72%);
+      pointer-events: none;
+    }
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font: 700 0.78rem/1.2 "Trebuchet MS", "Segoe UI", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .port {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid rgba(23, 32, 51, 0.1);
+      color: var(--ink);
+    }
+    .card h2 {
+      margin: 0;
+      font-size: 1.6rem;
+      line-height: 1.05;
+    }
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font: 400 0.96rem/1.6 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+    .action {
+      margin-top: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font: 700 0.9rem/1.2 "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--accent);
+    }
+    .empty {
+      padding: 22px;
+      border-radius: 22px;
+      background: rgba(255, 251, 245, 0.7);
+      border: 1px dashed rgba(23, 32, 51, 0.16);
+      color: var(--muted);
+      font: 400 0.98rem/1.7 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.92em;
+    }
+    @keyframes rise {
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @media (max-width: 640px) {
+      body { padding: 18px 14px 32px; }
+      .hero { padding: 22px; border-radius: 22px; }
+      .card { border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Telemetry Control Deck</div>
+      <h1>One shared launch page for the whole repo.</h1>
+      <p class="lede">
+        This hub lives in the common <code>web-apps/portal-hub</code> folder and probes known local URLs at runtime.
+        Only reachable dashboards are shown, so the page adapts to whichever stage is currently running.
+      </p>
+      <p class="meta-copy" id="hostText"></p>
+      <p class="meta-copy" id="statusText">Scanning local portals now...</p>
+      <div class="summary">
+        <div class="stat"><strong id="activeCount">0</strong><span>Active Portals</span></div>
+        <div class="stat"><strong id="stageCount">0</strong><span>Active Stages</span></div>
+        <div class="stat"><strong id="infraCount">0</strong><span>Infra Consoles</span></div>
+      </div>
+    </section>
+
+    <h2 class="section-title">Available Now</h2>
+    <section class="grid" id="portalGrid" aria-label="Portal launcher"></section>
+    <section class="empty" id="emptyState" hidden>
+      No portal responded yet. Start a stage with <code>./run.sh --start</code> from one of the project folders,
+      then refresh this page.
+    </section>
+  </main>
+
+  <script>
+    const host = window.location.hostname || "localhost";
+    const protocol = window.location.protocol || "http:";
+    const baseUrl = (port) => `${protocol}//${host}:${port}`;
+
+    const infraPortals = [
+      {
+        key: "infra-kafka-ui",
+        group: "Shared Infra",
+        name: "Kafka UI",
+        url: baseUrl(8080),
+        port: 8080,
+        description: "Browse topics, partitions, consumer groups, offsets, and lag."
+      },
+      {
+        key: "infra-portainer",
+        group: "Shared Infra",
+        name: "Portainer",
+        url: baseUrl(9000),
+        port: 9000,
+        description: "Inspect running containers, networks, and volumes."
+      }
+    ];
+
+    const stage2Portals = [
+      {
+        key: "kj02-producer",
+        group: "KJ-02",
+        name: "Stage 2 Producer",
+        url: baseUrl(8081),
+        port: 8081,
+        description: "Send telemetry events from the Spring Boot producer UI."
+      },
+      {
+        key: "kj02-consumer",
+        group: "KJ-02",
+        name: "Stage 2 Consumer",
+        url: baseUrl(8082),
+        port: 8082,
+        description: "Watch the live SSE event stream for Stage 2."
+      }
+    ];
+
+    const shared950x = [
+      { key: "shared-9501", kind: "producer", url: baseUrl(9501), port: 9501 },
+      { key: "shared-9502", kind: "consumer", url: baseUrl(9502), port: 9502 },
+      { key: "shared-9503", kind: "alert", url: baseUrl(9503), port: 9503 },
+      { key: "shared-9504", kind: "storage", url: baseUrl(9504), port: 9504 },
+      { key: "shared-9505", kind: "dlq", url: baseUrl(9505), port: 9505 }
+    ];
+
+    const stageProfiles = {
+      "KJ-03": {
+        producer: { group: "KJ-03", name: "Stage 3 Producer", description: "Send manual events or activate the always-on vehicle simulator." },
+        consumer: { group: "KJ-03", name: "Stage 3 Consumer", description: "Observe the Stage 3 live consumer stream." },
+        alert: { group: "KJ-03", name: "Stage 3 Alert Dashboard", description: "Track live alert classifications across the fan-out alert pipeline." },
+        storage: { group: "KJ-03", name: "Stage 3 Storage Dashboard", description: "Inspect the in-memory event store and storage feed." }
+      },
+      "KJ-04": {
+        producer: { group: "KJ-04", name: "Stage 4 Producer", description: "Send manual events or run the advanced always-on simulator." },
+        consumer: { group: "KJ-04", name: "Stage 4 Consumer", description: "Observe the Stage 4 live consumer stream." },
+        alert: { group: "KJ-04", name: "Stage 4 Alert Dashboard", description: "Track advanced alert classifications and live metrics." },
+        storage: { group: "KJ-04", name: "Stage 4 Storage Dashboard", description: "Inspect storage outcomes including retry and DLQ routing." },
+        dlq: { group: "KJ-04", name: "Stage 4 DLQ Viewer", description: "Inspect failed events with metadata from the dedicated DLQ viewer." }
+      }
+    };
+
+    async function probe(url, timeoutMs = 1200) {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        await fetch(url, {
+          mode: "no-cors",
+          cache: "no-store",
+          signal: controller.signal
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        window.clearTimeout(timer);
+      }
+    }
+
+    function renderCard(portal, index) {
+      const card = document.createElement("a");
+      card.className = "card";
+      card.href = portal.url;
+      card.target = "_blank";
+      card.rel = "noreferrer";
+      card.style.animationDelay = `${index * 0.05}s`;
+      card.innerHTML = `
+        <div class="meta">
+          <span>${portal.group}</span>
+          <span class="port">:${portal.port}</span>
+        </div>
+        <h2>${portal.name}</h2>
+        <p>${portal.description}</p>
+        <span class="action">Open Portal -></span>
+      `;
+      return card;
+    }
+
+    async function init() {
+      const grid = document.getElementById("portalGrid");
+      const empty = document.getElementById("emptyState");
+      const hostText = document.getElementById("hostText");
+      const probeMap = {};
+      const activePortals = [];
+
+      hostText.textContent = `Detected host: ${host}`;
+
+      const allPortals = [...infraPortals, ...stage2Portals, ...shared950x];
+      const probeResults = await Promise.all(
+        allPortals.map(async (portal) => [portal.key, await probe(portal.url)])
+      );
+
+      for (const [key, isUp] of probeResults) {
+        probeMap[key] = isUp;
+      }
+
+      for (const portal of infraPortals) {
+        if (probeMap[portal.key]) {
+          activePortals.push(portal);
+        }
+      }
+
+      for (const portal of stage2Portals) {
+        if (probeMap[portal.key]) {
+          activePortals.push(portal);
+        }
+      }
+
+      const stage4Up = probeMap["shared-9505"];
+      const stageName = stage4Up ? "KJ-04" : "KJ-03";
+      const stageProfile = stageProfiles[stageName];
+
+      for (const portal of shared950x) {
+        if (!probeMap[portal.key]) {
+          continue;
+        }
+        if (portal.kind === "dlq" && !stage4Up) {
+          continue;
+        }
+        if (!stageProfile[portal.kind]) {
+          continue;
+        }
+        activePortals.push({
+          ...stageProfile[portal.kind],
+          key: `${stageName}-${portal.kind}`,
+          url: portal.url,
+          port: portal.port
+        });
+      }
+
+      activePortals.forEach((portal, index) => grid.appendChild(renderCard(portal, index)));
+      empty.hidden = activePortals.length !== 0;
+
+      const stageGroups = new Set(activePortals.map((portal) => portal.group).filter((group) => group.startsWith("KJ-")));
+      const infraCount = activePortals.filter((portal) => portal.group === "Shared Infra").length;
+
+      document.getElementById("activeCount").textContent = String(activePortals.length);
+      document.getElementById("stageCount").textContent = String(stageGroups.size);
+      document.getElementById("infraCount").textContent = String(infraCount);
+      document.getElementById("statusText").textContent =
+        activePortals.length === 0
+          ? "No local portals responded yet."
+          : `Showing ${activePortals.length} reachable portal${activePortals.length === 1 ? "" : "s"} across your currently running stages.`;
+
+      empty.innerHTML =
+        `No portal responded yet on <code>${host}</code>. Start a stage with <code>./run.sh --start</code> ` +
+        `from one of the project folders, then refresh this page.`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

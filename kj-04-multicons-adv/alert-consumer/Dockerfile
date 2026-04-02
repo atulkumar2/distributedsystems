@@ -33,5 +33,5 @@ COPY --from=builder /app/alert-consumer/target/alert-consumer-*.jar app.jar
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 ENV SLOW_MODE=false
 
-EXPOSE 8083
+EXPOSE 9503
 ENTRYPOINT ["java", "-jar", "app.jar"]

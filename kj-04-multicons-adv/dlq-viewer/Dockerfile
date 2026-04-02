@@ -27,5 +27,5 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=builder /app/dlq-viewer/target/dlq-viewer-*.jar app.jar
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-EXPOSE 8085
+EXPOSE 9505
 ENTRYPOINT ["java", "-jar", "app.jar"]

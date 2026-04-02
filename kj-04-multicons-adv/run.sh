@@ -4,11 +4,12 @@ set -euo pipefail
 # Stage 4 helper script.
 # Services started by this script:
 # - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
-# - telemetry-producer on localhost:8081
-# - telemetry-consumer on localhost:8082
-# - telemetry-alert-consumer on localhost:8083
-# - telemetry-storage-consumer on localhost:8084
-# - telemetry-dlq-viewer on localhost:8085
+# - telemetry-portal-hub on localhost:9500
+# - telemetry-producer on localhost:9501
+# - telemetry-consumer on localhost:9502
+# - telemetry-alert-consumer on localhost:9503
+# - telemetry-storage-consumer on localhost:9504
+# - telemetry-dlq-viewer on localhost:9505
 
 BOLD=$(tput bold 2>/dev/null || true)
 RESET=$(tput sgr0 2>/dev/null || true)
@@ -30,13 +31,14 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
 STACK_CONTAINERS=(
+  telemetry-portal-hub
   telemetry-storage-consumer
   telemetry-alert-consumer
   telemetry-dlq-viewer
   telemetry-producer
   telemetry-consumer
 )
-BLOCKER_PORTS=(8081 8082 8083 8084 8085)
+BLOCKER_PORTS=(9500 9501 9502 9503 9504 9505)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
@@ -100,11 +102,12 @@ show_next_steps() {
 
   echo "  ${BOLD}Open these URLs in your browser:${RESET}"
   echo ""
-  url "  http://localhost:8081        Producer UI         — fill the form or click Randomise & Send"
-  url "  http://localhost:8082        Consumer UI         — live event stream via SSE"
-  url "  http://localhost:8083        Alert Consumer      — ALERT / WARNING / OK live feed"
-  url "  http://localhost:8084        Storage Consumer    — in-memory event store + SSE feed"
-  url "  http://localhost:8085        DLQ Viewer          — inspect failed events with metadata"
+  url "  http://localhost:9500        Portal Hub          — launch all dashboards from one page"
+  url "  http://localhost:9501        Producer UI         — fill the form or click Randomise & Send"
+  url "  http://localhost:9502        Consumer UI         — live event stream via SSE"
+  url "  http://localhost:9503        Alert Consumer      — ALERT / WARNING / OK live feed"
+  url "  http://localhost:9504        Storage Consumer    — in-memory event store + SSE feed"
+  url "  http://localhost:9505        DLQ Viewer          — inspect failed events with metadata"
   url "  http://localhost:8080        Kafka UI            — topics, partitions, consumer lag"
   url "  http://localhost:9000        Portainer           — inspect containers and volumes"
   echo ""
@@ -112,11 +115,12 @@ show_next_steps() {
   if [[ "$HOST_IP" != "YOUR_HOST_IP" && "$HOST_IP" != "127.0.0.1" ]]; then
     echo "  ${BOLD}From a remote machine, replace localhost with ${CYAN}${HOST_IP}${RESET}${BOLD}:${RESET}"
     echo ""
-    url "  http://${HOST_IP}:8081"
-    url "  http://${HOST_IP}:8082"
-    url "  http://${HOST_IP}:8083"
-    url "  http://${HOST_IP}:8084"
-    url "  http://${HOST_IP}:8085"
+    url "  http://${HOST_IP}:9500"
+    url "  http://${HOST_IP}:9501"
+    url "  http://${HOST_IP}:9502"
+    url "  http://${HOST_IP}:9503"
+    url "  http://${HOST_IP}:9504"
+    url "  http://${HOST_IP}:9505"
     url "  http://${HOST_IP}:8080"
     echo ""
   fi
@@ -124,27 +128,27 @@ show_next_steps() {
   header "Guided learning steps"
 
   step "${BOLD}Step 1 — Send events${RESET}"
-  note "Go to http://localhost:8081 and click 'Randomise & Send' 5-10 times."
+  note "Open http://localhost:9500 to launch any portal, then go to Producer UI on http://localhost:9501 and click 'Randomise & Send' 5-10 times."
   echo ""
 
   step "${BOLD}Step 2 — Watch the live stream${RESET}"
-  note "Open http://localhost:8082 — events arrive in real time via SSE."
+  note "Open http://localhost:9502 — events arrive in real time via SSE."
   echo ""
 
   step "${BOLD}Step 3 — Inspect the event store${RESET}"
-  note "Open http://localhost:8084 — the table shows the latest event per vehicle."
+  note "Open http://localhost:9504 — the table shows the latest event per vehicle."
   note "The live feed panel shows STORED (green) or DLQ (red) per record."
   echo ""
 
   step "${BOLD}Step 4 — Watch alert classification${RESET}"
-  note "Open http://localhost:8083 — each event is tagged ALERT / WARNING / OK."
+  note "Open http://localhost:9503 — each event is tagged ALERT / WARNING / OK."
   note "Thresholds: speed > 100 km/h -> ALERT, fuelLevel < 20 % -> WARNING."
   echo ""
 
   step "${BOLD}Step 5 — Trigger a DLQ event${RESET}"
   note "On the producer form, set speed above 120 km/h and send."
-  note "Check http://localhost:8084 feed — that event should show DLQ (red)."
-  note "Open http://localhost:8085 to inspect the failed record's original event, error reason, timestamp, partition, and offset."
+  note "Check http://localhost:9504 feed — that event should show DLQ (red)."
+  note "Open http://localhost:9505 to inspect the failed record's original event, error reason, timestamp, partition, and offset."
   echo ""
 
   step "${BOLD}Step 6 — Observe fan-out (same message, two groups)${RESET}"

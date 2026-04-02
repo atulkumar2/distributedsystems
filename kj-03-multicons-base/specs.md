@@ -33,8 +33,8 @@ Enhance my existing **Kafka-based telemetry system** by adding a new module in a
 
 I already have:
 
-- A **Telemetry Producer UI (port 8081)** that sends events to Kafka topic `vehicle-telemetry`
-- A **Telemetry Consumer UI (port 8082)** that reads and displays live events
+- A **Telemetry Producer UI (port 9501)** that sends events to Kafka topic `vehicle-telemetry`
+- A **Telemetry Consumer UI (port 9502)** that reads and displays live events
 - Kafka running via Docker
 - Kafka UI available
 - Events are JSON-based and include:
