@@ -14,5 +14,6 @@
   // Hide generated build output from explorer
   "files.exclude": {
     "target/": true
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

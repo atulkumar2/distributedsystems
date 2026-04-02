@@ -4,6 +4,7 @@ set -euo pipefail
 # Stage 4 helper script.
 # Services started by this script:
 # - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
+# - telemetry-postgres on localhost:5432
 # - telemetry-portal-hub on localhost:9500
 # - telemetry-producer on localhost:9501
 # - telemetry-consumer on localhost:9502
@@ -32,13 +33,14 @@ INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
 STACK_CONTAINERS=(
   telemetry-portal-hub
+  telemetry-postgres
   telemetry-storage-consumer
   telemetry-alert-consumer
   telemetry-dlq-viewer
   telemetry-producer
   telemetry-consumer
 )
-BLOCKER_PORTS=(9500 9501 9502 9503 9504 9505)
+BLOCKER_PORTS=(5432 9500 9501 9502 9503 9504 9505)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
@@ -106,8 +108,9 @@ show_next_steps() {
   url "  http://localhost:9501        Producer UI         — fill the form or click Randomise & Send"
   url "  http://localhost:9502        Consumer UI         — live event stream via SSE"
   url "  http://localhost:9503        Alert Consumer      — ALERT / WARNING / OK live feed"
-  url "  http://localhost:9504        Storage Consumer    — in-memory event store + SSE feed"
+  url "  http://localhost:9504        Storage Consumer    — Postgres-backed event store + SSE feed"
   url "  http://localhost:9505        DLQ Viewer          — inspect failed events with metadata"
+  url "  postgres://telematics:telematics@localhost:5432/telemetry"
   url "  http://localhost:8080        Kafka UI            — topics, partitions, consumer lag"
   url "  http://localhost:9000        Portainer           — inspect containers and volumes"
   echo ""
@@ -136,8 +139,9 @@ show_next_steps() {
   echo ""
 
   step "${BOLD}Step 3 — Inspect the event store${RESET}"
-  note "Open http://localhost:9504 — the table shows the latest event per vehicle."
+  note "Open http://localhost:9504 — the table shows the latest event per vehicle sourced from Postgres."
   note "The live feed panel shows STORED (green) or DLQ (red) per record."
+  note "Query the raw sink with: psql postgres://telematics:telematics@localhost:5432/telemetry -c 'select count(*) from telemetry_events;'"
   echo ""
 
   step "${BOLD}Step 4 — Watch alert classification${RESET}"

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 /**
  * Represents a single vehicle telemetry event published to the Kafka topic.
@@ -15,6 +16,7 @@ import java.util.Random;
  */
 public class TelemetryEvent {
 
+    private String eventId;
     private String vehicleId;
     private String timestamp;   // ISO-8601, e.g. "2026-03-31T10:15:30Z"
     private double latitude;
@@ -69,7 +71,7 @@ public class TelemetryEvent {
     public static TelemetryEvent randomFrom(List<String> vehicleIds) {
         Random r = new Random();
         String[] statuses  = {"ON", "ON", "ON", "IDLE"};
-        return new TelemetryEvent(
+        TelemetryEvent event = new TelemetryEvent(
             vehicleIds.get(r.nextInt(vehicleIds.size())),
             Instant.now().toString(),
             12.90 + r.nextDouble() * 0.20,   // Bangalore-ish latitude
@@ -78,9 +80,14 @@ public class TelemetryEvent {
             r.nextDouble() * 100,             // fuel 0–100
             statuses[r.nextInt(statuses.length)]
         );
+        event.ensureEventId();
+        return event;
     }
 
     // ── Getters / Setters ─────────────────────────────────────────────────────
+
+    public String getEventId()                { return eventId; }
+    public void   setEventId(String e)        { this.eventId = e; }
 
     public String getVehicleId()               { return vehicleId; }
     public void   setVehicleId(String v)       { this.vehicleId = v; }
@@ -102,4 +109,10 @@ public class TelemetryEvent {
 
     public String getEngineStatus()            { return engineStatus; }
     public void   setEngineStatus(String s)    { this.engineStatus = s; }
+
+    public void ensureEventId() {
+        if (eventId == null || eventId.isBlank()) {
+            eventId = UUID.randomUUID().toString();
+        }
+    }
 }

@@ -17,13 +17,13 @@ public class StorageController {
         this.storageService = storageService;
     }
 
-    /** Returns the full in-memory event store: latest event keyed by vehicleId. */
+    /** Returns the latest persisted event per vehicle, keyed by vehicleId. */
     @GetMapping("/api/store")
     public Map<String, TelemetryEvent> getStore() {
         return storageService.getEventStore();
     }
 
-    /** Returns processing metrics: processed, failures, storeSize. */
+    /** Returns processing metrics: processed, duplicates, failures, storeSize. */
     @GetMapping("/api/metrics")
     public Map<String, Object> getMetrics() {
         return storageService.getMetrics();

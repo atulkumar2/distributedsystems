@@ -29,7 +29,7 @@ rolling file logs. The stage apps run against the shared repo-level Kafka infras
  client-id:                   client-id:
   storage-consumer-1           alert-consumer-1
  - parse JSON                 - 8 alert rules (see below)
- - in-memory store            - offline watcher (10 s)
+ - Postgres sink             - offline watcher (10 s)
  - manual commit              - auto commit
  - retry 3× on failure        - SSE push to browser
  - speed > 120 → DLQ
@@ -122,7 +122,7 @@ kj-03-multicons-base/
 ├── dlq-producer/            ← DlqProducer (shared Kafka producer for DLQ)
 ├── ../web-apps/portal-hub/  ← Shared static launcher UI :9500 — discovers reachable dashboards
 ├── alert-consumer/          ← Spring Boot UI :9503 — 8-rule alert dashboard + SSE feed
-├── storage-consumer/        ← Spring Boot UI :9504 — event store dashboard + SSE feed
+├── storage-consumer/        ← Spring Boot UI :9504 — Postgres-backed event store dashboard + SSE feed
 ├── producer-app/            ← Spring Boot UI :9501 — send events + always-on simulator
 └── consumer-app/            ← Spring Boot UI :9502 — live event stream + thread pool demo
 ```
@@ -152,13 +152,14 @@ Slow mode for lag simulation:
 This starts:
 
 - Shared Kafka broker on `localhost:9092` if it is not already running
+- Postgres on `localhost:5432` (`telematics` / `telematics`, database `telemetry`)
 - **Portal Hub** at <http://localhost:9500> — shared launcher that shows only reachable dashboards
 - Kafka UI at <http://localhost:8080>
 - Portainer at <http://localhost:9000>
 - **Producer UI** at <http://localhost:9501> — send events or start the always-on simulator
 - **Consumer UI** at <http://localhost:9502> — watch events arrive live via SSE
 - **Alert Consumer UI** at <http://localhost:9503> — real-time 8-rule alert feed
-- **Storage Consumer UI** at <http://localhost:9504> — in-memory event store table + SSE feed
+- **Storage Consumer UI** at <http://localhost:9504> — Postgres-backed latest-state table + SSE feed
 
 ### Option B — Run locally (Kafka must already be running)
 
@@ -184,7 +185,11 @@ java -jar consumer-app/target/consumer-app-*.jar
 Override Kafka address:
 
 ```bash
-KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar storage-consumer/target/storage-consumer-*.jar
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/telemetry \
+SPRING_DATASOURCE_USERNAME=telematics \
+SPRING_DATASOURCE_PASSWORD=telematics \
+java -jar storage-consumer/target/storage-consumer-*.jar
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar alert-consumer/target/alert-consumer-*.jar
 SPRING_KAFKA_BOOTSTRAP_SERVERS=localhost:9092 java -jar producer-app/target/producer-app-*.jar
 ```
@@ -223,9 +228,10 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 | Real-time 8-rule alert classifications | <http://localhost:9503> → alert feed |
 | Alert severity badges and rule tags | <http://localhost:9503> → CRITICAL / ALERT / WARNING / OK rows |
 | Alert metrics (criticals, engine anomalies, sudden changes, offline) | <http://localhost:9503> → metrics bar |
-| In-memory event store (latest state per vehicle) | <http://localhost:9504> → event store table |
+| Postgres-backed latest state per vehicle | <http://localhost:9504> → event store table |
 | Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:9504> → live feed panel |
 | Storage Consumer metrics | <http://localhost:9504> → metrics bar |
+| Query persisted telemetry rows | `psql postgres://telematics:telematics@localhost:5432/telemetry -c "select vehicle_id, count(*) from telemetry_events group by vehicle_id order by vehicle_id;"` |
 | Both consumer groups receive same Kafka message | Kafka UI → Topics → vehicle-telemetry → Messages |
 | DLQ receives events with speed > 120 | Kafka UI → Topics → vehicle-telemetry-dlq |
 | Lag grows when SLOW_MODE=true | Kafka UI → Consumer Groups → telemetry-storage-group |
@@ -251,6 +257,9 @@ Override at runtime via environment variables:
 | --- | --- | --- |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
 | `SLOW_MODE` | `false` | Set `true` to sleep 200–500 ms per message in storage-consumer |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/telemetry` | Postgres sink JDBC URL |
+| `SPRING_DATASOURCE_USERNAME` | `telematics` | Postgres username |
+| `SPRING_DATASOURCE_PASSWORD` | `telematics` | Postgres password |
 
 Thresholds (change in source only):
 
@@ -274,6 +283,7 @@ Thresholds (change in source only):
 | --- | --- |
 | `vehicle-telemetry` topic | MQTT broker / raw IoT ingest topic |
 | Storage Consumer | Time-series database writer (InfluxDB, TimescaleDB) |
+| `eventId` unique key + duplicate ignore | Practical idempotent sink for at-least-once Kafka delivery |
 | Alert Consumer | Rules engine / CEP (Complex Event Processing) |
 | DLQ | Ops alerting + manual replay queue |
 | `vehicleId` message key | Device ID ensuring ordered processing per device |

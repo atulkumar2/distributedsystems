@@ -13,8 +13,8 @@ run on a shared Docker network, while each stage starts only its own app contain
 | --- | --- | --- | --- |
 | [`kj-01-cli-base/`](./kj-01-cli-base/) | 1 | Plain Java producer and consumer examples, including manual offset commits | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-01-cli-base/run.sh) |
 | [`kj-02-web/`](./kj-02-web/) | 2 | Spring Boot producer and consumer web apps with live SSE streaming | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-02-web/run.sh) |
-| [`kj-03-multicons-base/`](./kj-03-multicons-base/) | 3 | Multi-consumer platform with storage and alert dashboards, DLQ producer, and always-on simulator | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-03-multicons-base/run.sh) |
-| [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) | 4 | Advanced multi-consumer platform with retry-before-DLQ behavior and a dedicated DLQ viewer UI | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-04-multicons-adv/run.sh) |
+| [`kj-03-multicons-base/`](./kj-03-multicons-base/) | 3 | Multi-consumer platform with alert dashboards, a Postgres storage sink, idempotent inserts, and an always-on simulator | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-03-multicons-base/run.sh) |
+| [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) | 4 | Advanced multi-consumer platform with a Postgres storage sink, retry-before-DLQ behavior, idempotent inserts, and a dedicated DLQ viewer UI | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-04-multicons-adv/run.sh) |
 | [`infra/`](./infra/) | Shared | Common Kafka broker, Kafka UI, and Portainer for all stages | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/infra/run.sh) |
 | [`web-apps/`](./web-apps/) | Shared | Reusable browser UI assets, including the common portal hub | — |
 
@@ -24,8 +24,8 @@ run on a shared Docker network, while each stage starts only its own app contain
 | --- | --- | --- |
 | 1 | Kafka fundamentals | plain producer/consumer, partitions, keys, consumer groups, manual commit |
 | 2 | Spring Boot + browser integration | REST endpoints, `KafkaTemplate`, `@KafkaListener`, Server-Sent Events |
-| 3 | Multi-consumer fan-out | independent consumer groups, alerting, storage, always-on simulation, DLQ basics |
-| 4 | Failure handling and operations | retry with backoff, direct-vs-retry DLQ routing, DLQ inspection UI, lag simulation |
+| 3 | Multi-consumer fan-out | independent consumer groups, alerting, Kafka-to-Postgres sink, idempotent writes, always-on simulation, DLQ basics |
+| 4 | Failure handling and operations | retry with backoff, Kafka-to-Postgres sink, idempotent writes, direct-vs-retry DLQ routing, DLQ inspection UI, lag simulation |
 
 ## Quick start
 
@@ -88,7 +88,7 @@ so multiple stages can share the same broker if their app ports do not collide.
 1. Start with [`kj-01-cli-base/`](./kj-01-cli-base/) to learn the core Kafka producer and consumer mechanics.
 2. Move to [`kj-02-web/`](./kj-02-web/) to see Spring Boot apps produce and stream events to the browser.
 3. Continue with [`kj-03-multicons-base/`](./kj-03-multicons-base/) to learn Kafka fan-out and multiple consumer groups.
-4. Finish with [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) for more realistic failure handling, retries, DLQ inspection, and operational behavior.
+4. Finish with [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) for more realistic failure handling, Postgres-backed storage, retries, DLQ inspection, and operational behavior.
 
 ## Project docs
 

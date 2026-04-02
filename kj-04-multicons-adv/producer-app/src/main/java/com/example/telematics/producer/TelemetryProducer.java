@@ -28,6 +28,7 @@ public class TelemetryProducer {
 
     public void send(TelemetryEvent event) {
         try {
+            event.ensureEventId();
             String json = objectMapper.writeValueAsString(event);
             // Use vehicleId as the message key — preserves per-vehicle ordering
             kafkaTemplate.send(topic, event.getVehicleId(), json)
@@ -35,7 +36,8 @@ public class TelemetryProducer {
                     if (ex != null) {
                         log.error("Failed to send event for {}: {}", event.getVehicleId(), ex.getMessage());
                     } else {
-                        log.info("Sent key={} partition={} offset={}",
+                        log.info("Sent eventId={} key={} partition={} offset={}",
+                            event.getEventId(),
                             event.getVehicleId(),
                             result.getRecordMetadata().partition(),
                             result.getRecordMetadata().offset());

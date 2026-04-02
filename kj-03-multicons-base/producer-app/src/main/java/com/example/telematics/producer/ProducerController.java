@@ -34,9 +34,11 @@ public class ProducerController {
         if (event.getTimestamp() == null || event.getTimestamp().isBlank()) {
             event.setTimestamp(Instant.now().toString());
         }
+        event.ensureEventId();
         producer.send(event);
         return ResponseEntity.ok(Map.of(
             "status", "sent",
+            "eventId", event.getEventId(),
             "vehicleId", event.getVehicleId(),
             "timestamp", event.getTimestamp()
         ));
