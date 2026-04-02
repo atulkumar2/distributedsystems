@@ -4,8 +4,9 @@ set -euo pipefail
 # Stage 2 helper script.
 # Services started by this script:
 # - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
-# - telemetry-producer on localhost:8081
-# - telemetry-consumer on localhost:8082
+# - telemetry-portal-hub on localhost:9500
+# - telemetry-producer on localhost:9501
+# - telemetry-consumer on localhost:9502
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
@@ -20,12 +21,13 @@ COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
 KAFKA_BROKER="localhost:9092"
-PRODUCER_URL="http://localhost:8081"
-CONSUMER_URL="http://localhost:8082"
+PORTAL_HUB_URL="http://localhost:9500"
+PRODUCER_URL="http://localhost:9501"
+CONSUMER_URL="http://localhost:9502"
 KAFKA_UI_URL="http://localhost:8080"
 PORTAINER_URL="http://localhost:9000"
-STACK_CONTAINERS=(telemetry-producer telemetry-consumer)
-BLOCKER_PORTS=(8081 8082)
+STACK_CONTAINERS=(telemetry-portal-hub telemetry-producer telemetry-consumer)
+BLOCKER_PORTS=(9500 9501 9502)
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
 usage() {
@@ -33,7 +35,7 @@ usage() {
 Usage: ./run.sh [option]
 
 Options:
-  --start          Start shared infra, producer app, and consumer app
+  --start          Start shared infra, portal hub, producer app, and consumer app
   --stop           Stop and remove the Docker Compose stack for this project
   --stop-blockers  Stop/remove Docker containers that would block --start
   --help           Show this help
@@ -81,7 +83,7 @@ stop_blockers() {
 start_stack() {
   ensure_prereqs
 
-  info "Starting shared infra, producer app, and consumer app..."
+  info "Starting shared infra, portal hub, producer app, and consumer app..."
 
   local cname proj
   for cname in "${LEGACY_CONTAINERS[@]}"; do
@@ -119,6 +121,7 @@ start_stack() {
   echo -e "${GREEN}  Everything is ready.${NC}"
   echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo ""
+  echo -e "  ${CYAN}Portal Hub${NC}   →  $PORTAL_HUB_URL"
   echo -e "  ${CYAN}Producer app${NC} →  $PRODUCER_URL"
   echo -e "  ${CYAN}Consumer app${NC} →  $CONSUMER_URL"
   echo -e "  ${CYAN}Kafka UI${NC}     →  $KAFKA_UI_URL"
@@ -135,7 +138,7 @@ start_stack() {
 
 stop_stack() {
   ensure_prereqs
-  info "Stopping producer app and consumer app..."
+  info "Stopping portal hub, producer app, and consumer app..."
   docker compose -f "$COMPOSE_FILE" down
   success "Project stack stopped."
 }

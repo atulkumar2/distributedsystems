@@ -1,28 +1,44 @@
 services:
-  # ── Producer web app (http://localhost:8081) ──────────────────────────────────
+  # ── Portal Hub (:9500) ──────────────────────────────────────────────────────
+  # Single landing page to open every portal in this stage from one place.
+  portal-hub:
+    build:
+      context: ..
+      dockerfile: web-apps/portal-hub/Dockerfile
+    container_name: telemetry-portal-hub
+    ports:
+      - "9500:80"
+    restart: on-failure
+    networks:
+      - default
+      - shared
+
+  # ── Producer web app (http://localhost:9501) ──────────────────────────────────
   producer-app:
     build:
       context: .                            # kj-02-web/ — includes telemetry-model sources
       dockerfile: producer-app/Dockerfile
     container_name: telemetry-producer
     ports:
-      - "8081:8081"
+      - "9501:9501"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: on-failure
     networks:
       - default
       - shared
 
-  # ── Consumer web app (http://localhost:8082) ──────────────────────────────────
+  # ── Consumer web app (http://localhost:9502) ──────────────────────────────────
   consumer-app:
     build:
       context: .                            # kj-02-web/ — shared context for consistency
       dockerfile: consumer-app/Dockerfile
     container_name: telemetry-consumer
     ports:
-      - "8082:8082"
+      - "9502:9502"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: on-failure
     networks:
       - default
       - shared

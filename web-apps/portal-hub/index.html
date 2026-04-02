@@ -95,6 +95,15 @@
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 18px;
     }
+    .portal-section {
+      margin-top: 22px;
+    }
+    .portal-section[hidden] {
+      display: none;
+    }
+    .grid.infra-grid {
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+    }
     .flow-panel {
       margin-top: 24px;
       padding: 20px;
@@ -211,6 +220,7 @@
       body { padding: 18px 14px 32px; }
       .hero { padding: 22px; border-radius: 22px; }
       .card { border-radius: 20px; }
+      .grid.infra-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -239,7 +249,14 @@
       <p class="flow-note" id="flowNote" hidden></p>
       <img id="flowImage" alt="Stage data flow diagram">
     </section>
-    <section class="grid" id="portalGrid" aria-label="Portal launcher"></section>
+    <section class="portal-section" id="infraSection" hidden>
+      <h2 class="section-title">Shared Infra</h2>
+      <section class="grid infra-grid" id="infraGrid" aria-label="Infra launcher"></section>
+    </section>
+    <section class="portal-section" id="stageSection" hidden>
+      <h2 class="section-title">Stage Apps</h2>
+      <section class="grid" id="stageGrid" aria-label="Stage launcher"></section>
+    </section>
     <section class="empty" id="emptyState" hidden>
       No portal responded yet. Start a stage with <code>./run.sh --start</code> from one of the project folders,
       then refresh this page.
@@ -275,16 +292,16 @@
         key: "kj02-producer",
         group: "KJ-02",
         name: "Stage 2 Producer",
-        url: baseUrl(8081),
-        port: 8081,
+        url: baseUrl(9501),
+        port: 9501,
         description: "Send telemetry events from the Spring Boot producer UI."
       },
       {
         key: "kj02-consumer",
         group: "KJ-02",
         name: "Stage 2 Consumer",
-        url: baseUrl(8082),
-        port: 8082,
+        url: baseUrl(9502),
+        port: 9502,
         description: "Watch the live SSE event stream for Stage 2."
       }
     ];
@@ -388,11 +405,15 @@
     }
 
     async function init() {
-      const grid = document.getElementById("portalGrid");
+      const infraSection = document.getElementById("infraSection");
+      const stageSection = document.getElementById("stageSection");
+      const infraGrid = document.getElementById("infraGrid");
+      const stageGrid = document.getElementById("stageGrid");
       const empty = document.getElementById("emptyState");
       const hostText = document.getElementById("hostText");
       const probeMap = {};
-      const activePortals = [];
+      const activeInfraPortals = [];
+      const activeStagePortals = [];
 
       hostText.textContent = `Detected host: ${host}`;
 
@@ -407,19 +428,28 @@
 
       for (const portal of infraPortals) {
         if (probeMap[portal.key]) {
-          activePortals.push(portal);
-        }
-      }
-
-      for (const portal of stage2Portals) {
-        if (probeMap[portal.key]) {
-          activePortals.push(portal);
+          activeInfraPortals.push(portal);
         }
       }
 
       let activeStageName = null;
-      const stage950xActive = shared950x.some((portal) => probeMap[portal.key]);
-      if (stage950xActive) {
+      const stage2OnlyActive =
+        probeMap["shared-9501"] &&
+        probeMap["shared-9502"] &&
+        !probeMap["shared-9503"] &&
+        !probeMap["shared-9504"] &&
+        !probeMap["shared-9505"];
+      const advancedStageActive =
+        probeMap["shared-9503"] || probeMap["shared-9504"] || probeMap["shared-9505"];
+
+      if (stage2OnlyActive) {
+        for (const portal of stage2Portals) {
+          if (probeMap[portal.key]) {
+            activeStagePortals.push(portal);
+          }
+        }
+        activeStageName = "KJ-02";
+      } else if (advancedStageActive) {
         const stage4Up = probeMap["shared-9505"];
         const stageName = stage4Up ? "KJ-04" : "KJ-03";
         const stageProfile = stageProfiles[stageName];
@@ -434,7 +464,7 @@
           if (!stageProfile[portal.kind]) {
             continue;
           }
-          activePortals.push({
+          activeStagePortals.push({
             ...stageProfile[portal.kind],
             key: `${stageName}-${portal.kind}`,
             url: portal.url,
@@ -443,11 +473,15 @@
         }
 
         activeStageName = stageName;
-      } else if (stage2Portals.some((portal) => probeMap[portal.key])) {
-        activeStageName = "KJ-02";
       }
 
-      activePortals.forEach((portal, index) => grid.appendChild(renderCard(portal, index)));
+      const activePortals = [...activeInfraPortals, ...activeStagePortals];
+
+      activeInfraPortals.forEach((portal, index) => infraGrid.appendChild(renderCard(portal, index)));
+      activeStagePortals.forEach((portal, index) => stageGrid.appendChild(renderCard(portal, activeInfraPortals.length + index)));
+
+      infraSection.hidden = activeInfraPortals.length === 0;
+      stageSection.hidden = activeStagePortals.length === 0;
       empty.hidden = activePortals.length !== 0;
 
       const stageGroups = new Set(activePortals.map((portal) => portal.group).filter((group) => group.startsWith("KJ-")));

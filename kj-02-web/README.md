@@ -7,7 +7,7 @@ complexity of the full multi-consumer platform.
 
 ```text
 producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
-   :8081                                            :8082
+   :9501                                            :9502
 ```
 
 > **Note — shared infra:** Kafka, Kafka UI, and Portainer now run from the repo-level
@@ -19,7 +19,8 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
 > | Kafka broker (host) | `9092` | shared |
 > | Kafka UI | `8080` | shared |
 > | Portainer | `9000` / `9443` | shared |
-> | Producer / Consumer | — | `8081` / `8082` |
+> | Portal Hub | — | `9500` |
+> | Producer / Consumer | — | `9501` / `9502` |
 
 ## Quick start (Docker — everything in one command)
 
@@ -29,8 +30,9 @@ producer-app  →  Kafka (vehicle-telemetry)  →  consumer-app
 
 | URL | What you see |
 | --- | --- |
-| [http://localhost:8081](http://localhost:8081) | Producer — compose and send telemetry events |
-| [http://localhost:8082](http://localhost:8082) | Consumer — live stream of incoming events |
+| [http://localhost:9500](http://localhost:9500) | Portal Hub — launch the Stage 2 apps from one page |
+| [http://localhost:9501](http://localhost:9501) | Producer — compose and send telemetry events |
+| [http://localhost:9502](http://localhost:9502) | Consumer — live stream of incoming events |
 | [http://localhost:8080](http://localhost:8080) | Kafka UI — explore topics, partitions, offsets |
 | [http://localhost:9000](http://localhost:9000) | Portainer — inspect the shared local Docker stack |
 
@@ -53,16 +55,16 @@ cd ../infra && ./run.sh --start
 Then run the apps in separate terminals from the `kj-02-web/` directory:
 
 ```bash
-# Terminal 1 — producer on http://localhost:8081
+# Terminal 1 — producer on http://localhost:9501
 cd producer-app && mvn spring-boot:run
 
-# Terminal 2 — consumer on http://localhost:8082
+# Terminal 2 — consumer on http://localhost:9502
 cd consumer-app && mvn spring-boot:run
 ```
 
 ## How it works
 
-### Producer app (`producer-app/`, port 8081)
+### Producer app (`producer-app/`, port 9501)
 
 - Static HTML form lets you pick a vehicle, adjust speed/fuel/engine status, and click **Send Event**.
 - **Randomise & Send** generates a random event instantly — good for bulk testing.
@@ -70,7 +72,7 @@ cd consumer-app && mvn spring-boot:run
 - `POST /api/events/random` — generates and sends a random event, returns it as JSON.
 - Uses `vehicleId` as the Kafka message key to preserve per-vehicle ordering.
 
-### Consumer app (`consumer-app/`, port 8082)
+### Consumer app (`consumer-app/`, port 9502)
 
 - Connects to `GET /api/events/stream` (Server-Sent Events) immediately on page load.
 - A Spring `@KafkaListener` receives every record and pushes the raw JSON to all active SSE clients.
@@ -83,7 +85,7 @@ cd consumer-app && mvn spring-boot:run
 kj-02-web/
 ├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 17) — 3 modules
 ├── run.sh
-├── docker-compose.yml       orchestrates the stage app containers on the shared Kafka network
+├── docker-compose.yml       portal hub + stage app containers on the shared Kafka network
 ├── telemetry-model/         shared library module
 │   ├── pom.xml
 │   └── src/main/java/…/model/
@@ -116,8 +118,9 @@ kj-02-web/
 
 | What | Where to look |
 | --- | --- |
-| Send events | <http://localhost:8081> → click **Randomise & Send** |
-| Live event stream | <http://localhost:8082> → events appear via SSE |
+| Launch stage apps | <http://localhost:9500> → open Producer or Consumer |
+| Send events | <http://localhost:9501> → click **Randomise & Send** |
+| Live event stream | <http://localhost:9502> → events appear via SSE |
 | Topic messages with key/partition/offset | Kafka UI → Topics → vehicle-telemetry → Messages |
 | Same vehicleId always on same partition | Partition column in Kafka UI messages view |
 | Consumer group lag | Kafka UI → Consumer Groups → `vehicle-telemetry-streaming-web-group` |

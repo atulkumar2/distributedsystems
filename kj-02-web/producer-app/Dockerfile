@@ -20,5 +20,5 @@ RUN mvn package -DskipTests -q -pl producer-app -am
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=builder /app/producer-app/target/producer-app-*.jar app.jar
-EXPOSE 8081
+EXPOSE 9501
 ENTRYPOINT ["java", "-jar", "app.jar"]

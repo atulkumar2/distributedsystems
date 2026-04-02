@@ -73,7 +73,7 @@ so multiple stages can share the same broker if their app ports do not collide.
 | --- | --- | --- | --- |
 | `infra` | `9092` | `8080` | `9000` / `9443` | — |
 | `kj-01-cli-base` | shared | shared | shared | — |
-| `kj-02-web` | shared | shared | shared | producer `8081`, consumer `8082` |
+| `kj-02-web` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502` |
 | `kj-03-multicons-base` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502`, alert `9503`, storage `9504` |
 | `kj-04-multicons-adv` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502`, alert `9503`, storage `9504`, DLQ viewer `9505` |
 
