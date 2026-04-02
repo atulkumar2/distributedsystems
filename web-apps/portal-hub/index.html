@@ -102,7 +102,7 @@
       display: none;
     }
     .grid.infra-grid {
-      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      grid-template-columns: repeat(3, minmax(240px, 1fr));
     }
     .flow-panel {
       margin-top: 24px;
@@ -284,6 +284,14 @@
         url: baseUrl(9000),
         port: 9000,
         description: "Inspect running containers, networks, and volumes."
+      },
+      {
+        key: "infra-adminer",
+        group: "Shared Infra",
+        name: "Adminer",
+        url: baseUrl(8081),
+        port: 8081,
+        description: "Browse the shared Postgres database from a web UI."
       }
     ];
 

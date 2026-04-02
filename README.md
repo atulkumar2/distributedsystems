@@ -4,7 +4,7 @@ Four Java + Apache Kafka learning projects built around the same vehicle telemet
 progresses from plain Java Kafka clients to Spring Boot web apps, then to multi-consumer streaming
 architectures with alerting, storage, and DLQ handling.
 
-All stages now share a common infra stack in [`infra/`](./infra/): Kafka, Kafka UI, and Portainer
+All stages now share a common infra stack in [`infra/`](./infra/): Postgres, Kafka, Kafka UI, Adminer, and Portainer
 run on a shared Docker network, while each stage starts only its own app containers.
 
 ## Repo layout
@@ -15,8 +15,8 @@ run on a shared Docker network, while each stage starts only its own app contain
 | [`kj-02-web/`](./kj-02-web/) | 2 | Spring Boot producer and consumer web apps with live SSE streaming | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-02-web/run.sh) |
 | [`kj-03-multicons-base/`](./kj-03-multicons-base/) | 3 | Multi-consumer platform with alert dashboards, a Postgres storage sink, idempotent inserts, and an always-on simulator | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-03-multicons-base/run.sh) |
 | [`kj-04-multicons-adv/`](./kj-04-multicons-adv/) | 4 | Advanced multi-consumer platform with a Postgres storage sink, retry-before-DLQ behavior, idempotent inserts, and a dedicated DLQ viewer UI | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/kj-04-multicons-adv/run.sh) |
-| [`infra/`](./infra/) | Shared | Common Kafka broker, Kafka UI, and Portainer for all stages | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/infra/run.sh) |
-| [`web-apps/`](./web-apps/) | Shared | Reusable browser UI assets, including the common portal hub | — |
+| [`infra/`](./infra/) | Shared | Common Postgres, Kafka broker, Kafka UI, Adminer, and Portainer for all stages | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/infra/run.sh) |
+| [`web-apps/`](./web-apps/) | Shared | Reusable browser UI assets plus the shared portal-hub Docker Compose | [`run.sh`](/home/atul-kumar/workspace/distributedsystems/web-apps/run.sh) |
 
 ## What each stage teaches
 
@@ -35,6 +35,13 @@ run on a shared Docker network, while each stage starts only its own app contain
 cd infra
 ./run.sh --start
 ```
+
+Adminer login values:
+- System: `PostgreSQL`
+- Server: `postgres`
+- Username: `telematics`
+- Password: `telematics`
+- Database: `telemetry`
 
 ### Stage 1: CLI Kafka example
 
@@ -71,7 +78,7 @@ so multiple stages can share the same broker if their app ports do not collide.
 
 | Stack | Kafka broker | Kafka UI | Portainer | App UIs |
 | --- | --- | --- | --- |
-| `infra` | `9092` | `8080` | `9000` / `9443` | — |
+| `infra` | `9092` | `8080` / `8081` | `9000` / `9443` | Postgres `5432` |
 | `kj-01-cli-base` | shared | shared | shared | — |
 | `kj-02-web` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502` |
 | `kj-03-multicons-base` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502`, alert `9503`, storage `9504` |

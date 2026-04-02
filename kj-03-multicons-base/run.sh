@@ -3,8 +3,7 @@ set -euo pipefail
 
 # Stage 3 helper script.
 # Services started by this script:
-# - shared infra if needed: kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
-# - telemetry-postgres on localhost:5432
+# - shared infra if needed: postgres-shared (5432), kafka-shared (9092), kafka-ui-shared (8080), portainer-shared (9000/9443)
 # - telemetry-portal-hub on localhost:9500
 # - telemetry-producer on localhost:9501
 # - telemetry-consumer on localhost:9502
@@ -29,16 +28,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
+WEB_APPS_COMPOSE_FILE="$REPO_ROOT/web-apps/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
 STACK_CONTAINERS=(
   telemetry-portal-hub
-  telemetry-postgres
   telemetry-storage-consumer
   telemetry-alert-consumer
   telemetry-producer
   telemetry-consumer
 )
-BLOCKER_PORTS=(5432 9500 9501 9502 9503 9504)
+BLOCKER_PORTS=(9500 9501 9502 9503 9504)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
@@ -63,6 +62,7 @@ ensure_prereqs() {
   command -v docker > /dev/null 2>&1 || error "docker not found. Please install Docker Desktop or Docker Engine."
   [[ -f "$COMPOSE_FILE" ]] || error "docker-compose.yml not found in project root."
   [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
+  [[ -f "$WEB_APPS_COMPOSE_FILE" ]] || error "Shared web-apps compose file not found at $WEB_APPS_COMPOSE_FILE."
   docker compose version > /dev/null 2>&1 || error "'docker compose' (v2) not available. Install the Compose plugin."
   docker info > /dev/null 2>&1 || error "Docker daemon is not running."
 }
@@ -215,6 +215,7 @@ start_stack() {
   done
 
   docker compose -f "$INFRA_COMPOSE_FILE" up -d
+  docker compose -f "$WEB_APPS_COMPOSE_FILE" up -d --build
 
   local retries=45
   until docker exec "$KAFKA_CONTAINER" \
@@ -225,7 +226,7 @@ start_stack() {
     sleep 1
   done
 
-  SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build --force-recreate $detach
+  SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build $detach
 }
 
 stop_stack() {

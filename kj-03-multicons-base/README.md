@@ -2,7 +2,7 @@
 
 **Stage 3** — Full-stack vehicle telemetry Kafka platform. One portal hub, four browser UIs, two stream-processing
 backends, a Dead-Letter Queue, an always-on vehicle fleet simulator, 8 real-time alert rules, and
-rolling file logs. The stage apps run against the shared repo-level Kafka infrastructure.
+rolling file logs. The stage apps run against the shared repo-level Postgres + Kafka infrastructure.
 
 ---
 
@@ -114,13 +114,14 @@ instead of an auto-assigned random UUID.
 kj-03-multicons-base/
 ├── pom.xml                  ← parent POM (9 modules)
 ├── run.sh
-├── docker-compose.yml       ← portal hub + all 4 app services attached to the shared Kafka network
+├── docker-compose.yml       ← all 4 app services attached to the shared Kafka network
+├── ../web-apps/docker-compose.yml ← shared portal hub on :9500
 ├── README.md
 ├── model/                   ← TelemetryEvent, DlqEvent (shared POJOs)
 ├── util/                    ← JsonUtil (singleton ObjectMapper)
 ├── config/                  ← AppConfig (all constants + env-var overrides)
 ├── dlq-producer/            ← DlqProducer (shared Kafka producer for DLQ)
-├── ../web-apps/portal-hub/  ← Shared static launcher UI :9500 — discovers reachable dashboards
+├── ../web-apps/portal-hub/  ← Shared static launcher UI used by the shared hub container
 ├── alert-consumer/          ← Spring Boot UI :9503 — 8-rule alert dashboard + SSE feed
 ├── storage-consumer/        ← Spring Boot UI :9504 — Postgres-backed event store dashboard + SSE feed
 ├── producer-app/            ← Spring Boot UI :9501 — send events + always-on simulator

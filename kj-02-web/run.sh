@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
+WEB_APPS_COMPOSE_FILE="$REPO_ROOT/web-apps/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
 KAFKA_BROKER="localhost:9092"
 PORTAL_HUB_URL="http://localhost:9500"
@@ -46,6 +47,7 @@ ensure_prereqs() {
   command -v docker > /dev/null 2>&1 || error "Docker is not installed or not on PATH."
   [[ -f "$COMPOSE_FILE" ]] || error "docker-compose.yml not found in project root."
   [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
+  [[ -f "$WEB_APPS_COMPOSE_FILE" ]] || error "Shared web-apps compose file not found at $WEB_APPS_COMPOSE_FILE."
   docker compose version > /dev/null 2>&1 || error "Docker Compose is not available."
   docker info > /dev/null 2>&1 || error "Docker daemon is not running."
 }
@@ -103,7 +105,8 @@ start_stack() {
   done
 
   docker compose -f "$INFRA_COMPOSE_FILE" up -d
-  docker compose -f "$COMPOSE_FILE" up -d --build --force-recreate
+  docker compose -f "$WEB_APPS_COMPOSE_FILE" up -d --build
+  docker compose -f "$COMPOSE_FILE" up -d --build
 
   info "Waiting for Kafka broker to be ready..."
   local retries=45
@@ -138,7 +141,7 @@ start_stack() {
 
 stop_stack() {
   ensure_prereqs
-  info "Stopping portal hub, producer app, and consumer app..."
+  info "Stopping producer app and consumer app..."
   docker compose -f "$COMPOSE_FILE" down
   success "Project stack stopped."
 }

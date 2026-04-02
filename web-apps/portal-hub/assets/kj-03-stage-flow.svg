@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 340" role="img" aria-labelledby="title desc">
   <title id="title">Stage 3 data flow</title>
-  <desc id="desc">Producer sends telemetry to Kafka topic. Consumer, alert consumer, and storage consumer read the flow. Storage routes failed events to the DLQ.</desc>
+  <desc id="desc">Producer sends telemetry with eventId into Kafka. Consumer, alert consumer, and storage consumer read the topic. Storage writes idempotently to Postgres and routes failures to the DLQ.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1">
       <stop offset="0%" stop-color="#fff8ef"/>
@@ -10,33 +10,40 @@
       <path d="M0,0 L10,5 L0,10 z" fill="#9a5a18"/>
     </marker>
   </defs>
-  <rect width="920" height="300" rx="28" fill="url(#bg)"/>
+  <rect width="1040" height="340" rx="28" fill="url(#bg)"/>
   <g font-family="'Trebuchet MS', 'Segoe UI', sans-serif">
-    <rect x="30" y="108" width="150" height="84" rx="18" fill="#15243a"/>
-    <text x="105" y="142" fill="#fff" font-size="18" text-anchor="middle" font-weight="700">Producer UI</text>
-    <text x="105" y="166" fill="#c7d3e3" font-size="12" text-anchor="middle">manual send + always-on</text>
-    <rect x="252" y="98" width="170" height="104" rx="22" fill="#cd5c08"/>
-    <text x="337" y="135" fill="#fff" font-size="22" text-anchor="middle" font-weight="700">Kafka</text>
-    <text x="337" y="160" fill="#ffe7d0" font-size="13" text-anchor="middle">vehicle-telemetry</text>
-    <text x="337" y="180" fill="#ffe7d0" font-size="13" text-anchor="middle">3 partitions</text>
-    <rect x="505" y="30" width="160" height="72" rx="18" fill="#1d3557"/>
-    <text x="585" y="62" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Consumer UI</text>
-    <text x="585" y="83" fill="#c8d7ec" font-size="12" text-anchor="middle">live SSE stream</text>
-    <rect x="505" y="114" width="160" height="72" rx="18" fill="#174e3a"/>
-    <text x="585" y="146" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Alert Consumer</text>
-    <text x="585" y="167" fill="#cbe8dc" font-size="12" text-anchor="middle">alerts + metrics</text>
-    <rect x="505" y="198" width="160" height="72" rx="18" fill="#365a2c"/>
-    <text x="585" y="230" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Storage Consumer</text>
-    <text x="585" y="251" fill="#d9ebd0" font-size="12" text-anchor="middle">manual commit + store</text>
-    <rect x="734" y="198" width="150" height="72" rx="18" fill="#7a1f1f"/>
-    <text x="809" y="230" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">DLQ Topic</text>
-    <text x="809" y="251" fill="#f6c6c6" font-size="12" text-anchor="middle">failed telemetry</text>
-    <path d="M180 150 H242" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-    <path d="M422 120 C460 120, 470 72, 505 66" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-    <path d="M422 150 H495" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-    <path d="M422 182 C462 182, 472 228, 505 234" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-    <path d="M665 234 H724" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-    <text x="456" y="107" fill="#7b5d46" font-size="11" font-weight="700">fan-out</text>
-    <text x="680" y="222" fill="#7b5d46" font-size="11" font-weight="700">failure route</text>
+    <rect x="26" y="128" width="150" height="84" rx="18" fill="#15243a"/>
+    <text x="101" y="162" fill="#fff" font-size="18" text-anchor="middle" font-weight="700">Producer UI</text>
+    <text x="101" y="186" fill="#c7d3e3" font-size="12" text-anchor="middle">eventId + always-on</text>
+    <rect x="226" y="118" width="170" height="104" rx="22" fill="#cd5c08"/>
+    <text x="311" y="155" fill="#fff" font-size="22" text-anchor="middle" font-weight="700">Kafka</text>
+    <text x="311" y="180" fill="#ffe7d0" font-size="13" text-anchor="middle">vehicle-telemetry</text>
+    <text x="311" y="200" fill="#ffe7d0" font-size="13" text-anchor="middle">3 partitions</text>
+    <rect x="468" y="38" width="160" height="72" rx="18" fill="#1d3557"/>
+    <text x="548" y="70" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Consumer UI</text>
+    <text x="548" y="91" fill="#c8d7ec" font-size="12" text-anchor="middle">live SSE stream</text>
+    <rect x="468" y="126" width="160" height="72" rx="18" fill="#174e3a"/>
+    <text x="548" y="158" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Alert Consumer</text>
+    <text x="548" y="179" fill="#cbe8dc" font-size="12" text-anchor="middle">alerts + metrics</text>
+    <rect x="468" y="214" width="176" height="82" rx="18" fill="#365a2c"/>
+    <text x="556" y="246" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Storage Consumer</text>
+    <text x="556" y="267" fill="#d9ebd0" font-size="12" text-anchor="middle">manual commit + dedupe</text>
+    <text x="556" y="284" fill="#d9ebd0" font-size="12" text-anchor="middle">idempotent DB sink</text>
+    <rect x="720" y="214" width="150" height="82" rx="18" fill="#2f5d62"/>
+    <text x="795" y="246" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Postgres</text>
+    <text x="795" y="267" fill="#d3eef0" font-size="12" text-anchor="middle">telemetry_events</text>
+    <text x="795" y="284" fill="#d3eef0" font-size="12" text-anchor="middle">UNIQUE(event_id)</text>
+    <rect x="894" y="214" width="120" height="82" rx="18" fill="#7a1f1f"/>
+    <text x="954" y="246" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">DLQ Topic</text>
+    <text x="954" y="267" fill="#f6c6c6" font-size="12" text-anchor="middle">failed telemetry</text>
+    <path d="M176 170 H216" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M396 140 C428 140, 436 82, 468 74" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M396 170 H458" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M396 202 C428 202, 438 252, 468 255" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M644 255 H710" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M644 278 C712 278, 760 300, 894 278" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <text x="424" y="126" fill="#7b5d46" font-size="11" font-weight="700">fan-out</text>
+    <text x="662" y="243" fill="#7b5d46" font-size="11" font-weight="700">insert once</text>
+    <text x="704" y="304" fill="#7b5d46" font-size="11" font-weight="700">hard failure → DLQ</text>
   </g>
 </svg>

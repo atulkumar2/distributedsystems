@@ -3,8 +3,10 @@ set -euo pipefail
 
 # Shared local infrastructure for the repo.
 # Services started by this script:
+# - postgres-shared on localhost:5432
 # - kafka-shared on localhost:9092
 # - kafka-ui-shared on localhost:8080
+# - adminer-shared on localhost:8081
 # - portainer-shared on localhost:9000 and localhost:9443
 # All stages attach their app containers to this common Docker network.
 
@@ -18,8 +20,8 @@ error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 KAFKA_CONTAINER="kafka-shared"
-BLOCKER_PORTS=(9092 8080 9000 9443)
-STACK_CONTAINERS=(kafka-shared kafka-ui-shared portainer-shared)
+BLOCKER_PORTS=(5432 9092 8080 8081 9000 9443)
+STACK_CONTAINERS=(postgres-shared kafka-shared kafka-ui-shared adminer-shared portainer-shared)
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
 usage() {
@@ -27,7 +29,7 @@ usage() {
 Usage: ./run.sh [option]
 
 Options:
-  --start          Start shared Kafka, Kafka UI, and Portainer
+  --start          Start shared Postgres, Kafka, Kafka UI, Adminer, and Portainer
   --stop           Stop and remove the shared infra stack
   --stop-blockers  Stop/remove Docker containers that would block shared infra ports
   --help           Show this help
@@ -74,7 +76,7 @@ stop_blockers() {
 start_stack() {
   ensure_prereqs
 
-  info "Starting shared Kafka, Kafka UI, and Portainer..."
+  info "Starting shared Postgres, Kafka, Kafka UI, Adminer, and Portainer..."
   for cname in "${LEGACY_CONTAINERS[@]}"; do
     if docker inspect "$cname" > /dev/null 2>&1; then
       warn "Removing legacy container '$cname' before starting shared infra..."
@@ -96,9 +98,13 @@ start_stack() {
 
   success "Shared Kafka broker is ready at localhost:9092"
   echo ""
+  echo -e "  ${CYAN}Postgres${NC}     →  postgres://telematics:telematics@localhost:5432/telemetry"
   echo -e "  ${CYAN}Kafka broker${NC} →  localhost:9092"
   echo -e "  ${CYAN}Kafka UI${NC}     →  http://localhost:8080"
+  echo -e "  ${CYAN}Adminer${NC}      →  http://localhost:8081"
   echo -e "  ${CYAN}Portainer${NC}    →  http://localhost:9000 or https://localhost:9443"
+  echo ""
+  echo -e "  ${CYAN}Adminer login${NC} →  System: PostgreSQL | Server: postgres | Username: telematics | Password: telematics | Database: telemetry"
   echo ""
 }
 

@@ -1,18 +1,4 @@
 services:
-  # ── Portal Hub (:9500) ──────────────────────────────────────────────────────
-  # Single landing page to open every portal in this stage from one place.
-  portal-hub:
-    build:
-      context: ..
-      dockerfile: web-apps/portal-hub/Dockerfile
-    container_name: telemetry-portal-hub
-    ports:
-      - "9500:80"
-    restart: on-failure
-    networks:
-      - default
-      - shared
-
   # ── Producer web app (http://localhost:9501) ──────────────────────────────────
   producer-app:
     build:

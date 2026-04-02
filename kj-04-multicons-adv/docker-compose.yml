@@ -1,39 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: telemetry-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: telemetry
-      POSTGRES_USER: telematics
-      POSTGRES_PASSWORD: telematics
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U telematics -d telemetry"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    restart: on-failure
-    volumes:
-      - telemetry-postgres-data:/var/lib/postgresql/data
-    networks:
-      - default
-      - shared
-
-  # ── Portal Hub (:9500) ──────────────────────────────────────────────────────
-  # Single landing page to open every portal in this stage from one place.
-  portal-hub:
-    build:
-      context: ..
-      dockerfile: web-apps/portal-hub/Dockerfile
-    container_name: telemetry-portal-hub
-    ports:
-      - "9500:80"
-    restart: on-failure
-    networks:
-      - default
-      - shared
-
   # ── Storage Consumer UI (:9504) ──────────────────────────────────────────────
   # Reads vehicle-telemetry, stores every event in Postgres, and backs the storage dashboard.
   # Set SLOW_MODE=true to simulate lag (observable in Kafka UI Consumer Groups tab).
@@ -44,12 +9,9 @@ services:
     container_name: telemetry-storage-consumer
     ports:
       - "9504:9504"
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/telemetry
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shared:5432/telemetry
       SPRING_DATASOURCE_USERNAME: telematics
       SPRING_DATASOURCE_PASSWORD: telematics
       SLOW_MODE: "false"    # change to "true" to observe lag
@@ -130,6 +92,3 @@ networks:
   shared:
     external: true
     name: ds-shared
-
-volumes:
-  telemetry-postgres-data:

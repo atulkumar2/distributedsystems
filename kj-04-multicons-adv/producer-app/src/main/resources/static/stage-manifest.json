@@ -1,6 +1,6 @@
 {
   "stage": "KJ-04",
   "title": "Stage 4 Data Flow",
-  "subtitle": "Producer fan-out with alerting, storage retries, and a dedicated DLQ viewer for failed records.",
+  "subtitle": "Producer fan-out with alerting, idempotent Postgres storage, retry handling, and a dedicated DLQ viewer.",
   "graphicPath": "/stage-flow.svg"
 }

@@ -1,0 +1,17 @@
+services:
+  portal-hub:
+    build:
+      context: ..
+      dockerfile: web-apps/portal-hub/Dockerfile
+    container_name: telemetry-portal-hub
+    ports:
+      - "9500:80"
+    restart: on-failure
+    networks:
+      - default
+      - shared
+
+networks:
+  shared:
+    external: true
+    name: ds-shared

@@ -85,7 +85,7 @@ cd consumer-app && mvn spring-boot:run
 kj-02-web/
 ├── pom.xml                  parent POM (Spring Boot 3.4.4, Java 17) — 3 modules
 ├── run.sh
-├── docker-compose.yml       portal hub + stage app containers on the shared Kafka network
+├── docker-compose.yml       stage app containers on the shared Kafka network
 ├── telemetry-model/         shared library module
 │   ├── pom.xml
 │   └── src/main/java/…/model/
