@@ -221,7 +221,7 @@ start_stack() {
     sleep 1
   done
 
-  SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build $detach
+  SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build --force-recreate $detach
 }
 
 stop_stack() {

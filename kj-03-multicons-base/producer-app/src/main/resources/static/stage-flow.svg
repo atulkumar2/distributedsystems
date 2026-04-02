@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" role="img" aria-labelledby="title desc">
+  <title id="title">Stage 3 data flow</title>
+  <desc id="desc">Producer sends telemetry to Kafka topic. Consumer, alert consumer, and storage consumer read the flow. Storage routes failed events to the DLQ.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0%" stop-color="#fff8ef"/>
+      <stop offset="100%" stop-color="#f7efe4"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a5a18"/>
+    </marker>
+  </defs>
+  <rect width="920" height="300" rx="28" fill="url(#bg)"/>
+  <g font-family="'Trebuchet MS', 'Segoe UI', sans-serif">
+    <rect x="30" y="108" width="150" height="84" rx="18" fill="#15243a"/>
+    <text x="105" y="142" fill="#fff" font-size="18" text-anchor="middle" font-weight="700">Producer UI</text>
+    <text x="105" y="166" fill="#c7d3e3" font-size="12" text-anchor="middle">manual send + always-on</text>
+
+    <rect x="252" y="98" width="170" height="104" rx="22" fill="#cd5c08"/>
+    <text x="337" y="135" fill="#fff" font-size="22" text-anchor="middle" font-weight="700">Kafka</text>
+    <text x="337" y="160" fill="#ffe7d0" font-size="13" text-anchor="middle">vehicle-telemetry</text>
+    <text x="337" y="180" fill="#ffe7d0" font-size="13" text-anchor="middle">3 partitions</text>
+
+    <rect x="505" y="30" width="160" height="72" rx="18" fill="#1d3557"/>
+    <text x="585" y="62" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Consumer UI</text>
+    <text x="585" y="83" fill="#c8d7ec" font-size="12" text-anchor="middle">live SSE stream</text>
+
+    <rect x="505" y="114" width="160" height="72" rx="18" fill="#174e3a"/>
+    <text x="585" y="146" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Alert Consumer</text>
+    <text x="585" y="167" fill="#cbe8dc" font-size="12" text-anchor="middle">alerts + metrics</text>
+
+    <rect x="505" y="198" width="160" height="72" rx="18" fill="#365a2c"/>
+    <text x="585" y="230" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Storage Consumer</text>
+    <text x="585" y="251" fill="#d9ebd0" font-size="12" text-anchor="middle">manual commit + store</text>
+
+    <rect x="734" y="198" width="150" height="72" rx="18" fill="#7a1f1f"/>
+    <text x="809" y="230" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">DLQ Topic</text>
+    <text x="809" y="251" fill="#f6c6c6" font-size="12" text-anchor="middle">failed telemetry</text>
+
+    <path d="M180 150 H242" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M422 120 C460 120, 470 72, 505 66" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M422 150 H495" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M422 182 C462 182, 472 228, 505 234" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M665 234 H724" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+    <text x="456" y="107" fill="#7b5d46" font-size="11" font-weight="700">fan-out</text>
+    <text x="680" y="222" fill="#7b5d46" font-size="11" font-weight="700">failure route</text>
+  </g>
+</svg>

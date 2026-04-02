@@ -1,0 +1,6 @@
+{
+  "stage": "KJ-04",
+  "title": "Stage 4 Data Flow",
+  "subtitle": "Producer fan-out with alerting, storage retries, and a dedicated DLQ viewer for failed records.",
+  "graphicPath": "/stage-flow.svg"
+}

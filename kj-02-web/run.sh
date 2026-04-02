@@ -101,7 +101,7 @@ start_stack() {
   done
 
   docker compose -f "$INFRA_COMPOSE_FILE" up -d
-  docker compose -f "$COMPOSE_FILE" up -d --build
+  docker compose -f "$COMPOSE_FILE" up -d --build --force-recreate
 
   info "Waiting for Kafka broker to be ready..."
   local retries=45

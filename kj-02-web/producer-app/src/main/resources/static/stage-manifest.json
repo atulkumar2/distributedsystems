@@ -1,0 +1,6 @@
+{
+  "stage": "KJ-02",
+  "title": "Stage 2 Data Flow",
+  "subtitle": "Producer sends telemetry into Kafka and the consumer streams those records live to the browser over SSE.",
+  "graphicPath": "/stage-flow.svg"
+}

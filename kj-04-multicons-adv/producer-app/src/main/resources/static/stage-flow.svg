@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 320" role="img" aria-labelledby="title desc">
+  <title id="title">Stage 4 data flow</title>
+  <desc id="desc">Producer sends telemetry to Kafka topic. Consumer, alert consumer, and storage consumer read the flow. Storage retries failures, routes to the DLQ topic, and the DLQ viewer reads that topic.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0%" stop-color="#fff8ef"/>
+      <stop offset="100%" stop-color="#f7efe4"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a5a18"/>
+    </marker>
+  </defs>
+  <rect width="980" height="320" rx="28" fill="url(#bg)"/>
+  <g font-family="'Trebuchet MS', 'Segoe UI', sans-serif">
+    <rect x="26" y="118" width="150" height="84" rx="18" fill="#15243a"/>
+    <text x="101" y="152" fill="#fff" font-size="18" text-anchor="middle" font-weight="700">Producer UI</text>
+    <text x="101" y="176" fill="#c7d3e3" font-size="12" text-anchor="middle">manual send + always-on</text>
+
+    <rect x="232" y="108" width="168" height="104" rx="22" fill="#cd5c08"/>
+    <text x="316" y="145" fill="#fff" font-size="22" text-anchor="middle" font-weight="700">Kafka</text>
+    <text x="316" y="170" fill="#ffe7d0" font-size="13" text-anchor="middle">vehicle-telemetry</text>
+    <text x="316" y="190" fill="#ffe7d0" font-size="13" text-anchor="middle">3 partitions</text>
+
+    <rect x="470" y="38" width="160" height="72" rx="18" fill="#1d3557"/>
+    <text x="550" y="70" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Consumer UI</text>
+    <text x="550" y="91" fill="#c8d7ec" font-size="12" text-anchor="middle">live SSE stream</text>
+
+    <rect x="470" y="124" width="160" height="72" rx="18" fill="#174e3a"/>
+    <text x="550" y="156" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Alert Consumer</text>
+    <text x="550" y="177" fill="#cbe8dc" font-size="12" text-anchor="middle">alerts + metrics</text>
+
+    <rect x="470" y="210" width="170" height="76" rx="18" fill="#365a2c"/>
+    <text x="555" y="241" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">Storage Consumer</text>
+    <text x="555" y="261" fill="#d9ebd0" font-size="12" text-anchor="middle">retry + manual commit</text>
+
+    <rect x="718" y="210" width="130" height="76" rx="18" fill="#7a1f1f"/>
+    <text x="783" y="241" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">DLQ Topic</text>
+    <text x="783" y="261" fill="#f6c6c6" font-size="12" text-anchor="middle">failed events</text>
+
+    <rect x="824" y="38" width="130" height="76" rx="18" fill="#5b255f"/>
+    <text x="889" y="69" fill="#fff" font-size="17" text-anchor="middle" font-weight="700">DLQ Viewer</text>
+    <text x="889" y="89" fill="#ead1ee" font-size="12" text-anchor="middle">inspect records</text>
+
+    <path d="M176 160 H222" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M400 130 C430 130, 438 80, 470 74" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M400 160 H460" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M400 190 C430 190, 438 244, 470 248" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M640 248 H708" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+    <path d="M783 210 V124 C783 96, 804 76, 824 76" stroke="#9a5a18" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+    <text x="432" y="116" fill="#7b5d46" font-size="11" font-weight="700">fan-out</text>
+    <text x="650" y="236" fill="#7b5d46" font-size="11" font-weight="700">retry exhausted</text>
+    <text x="794" y="138" fill="#7b5d46" font-size="11" font-weight="700">read failed records</text>
+  </g>
+</svg>

@@ -1,0 +1,6 @@
+{
+  "stage": "KJ-03",
+  "title": "Stage 3 Data Flow",
+  "subtitle": "Producer fan-out into consumer, alert, and storage flows with DLQ routing from storage.",
+  "graphicPath": "/stage-flow.svg"
+}

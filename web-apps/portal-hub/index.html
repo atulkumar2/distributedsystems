@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Telemetry Portal Hub</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <style>
     :root {
       --ink: #172033;
@@ -93,6 +94,36 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 18px;
+    }
+    .flow-panel {
+      margin-top: 24px;
+      padding: 20px;
+      border-radius: 24px;
+      background: rgba(255, 251, 245, 0.82);
+      border: 1px solid rgba(23, 32, 51, 0.08);
+      box-shadow: 0 18px 38px rgba(23, 32, 51, 0.08);
+    }
+    .flow-panel img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 18px;
+      border: 1px solid rgba(23, 32, 51, 0.08);
+      background: rgba(255,255,255,0.5);
+    }
+    .flow-title {
+      margin: 0 0 6px;
+      font-size: 1.4rem;
+    }
+    .flow-subtitle {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font: 400 0.95rem/1.6 "Trebuchet MS", "Segoe UI", sans-serif;
+    }
+    .flow-note {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font: 400 0.9rem/1.6 "Trebuchet MS", "Segoe UI", sans-serif;
     }
     .card {
       position: relative;
@@ -187,7 +218,7 @@
   <main class="shell">
     <section class="hero">
       <div class="eyebrow">Telemetry Control Deck</div>
-      <h1>One shared launch page for the whole repo.</h1>
+      <h1>Kafka learning apps.</h1>
       <p class="lede">
         This hub lives in the common <code>web-apps/portal-hub</code> folder and probes known local URLs at runtime.
         Only reachable dashboards are shown, so the page adapts to whichever stage is currently running.
@@ -202,6 +233,12 @@
     </section>
 
     <h2 class="section-title">Available Now</h2>
+    <section class="flow-panel" id="flowPanel" hidden>
+      <h2 class="flow-title" id="flowTitle"></h2>
+      <p class="flow-subtitle" id="flowSubtitle"></p>
+      <p class="flow-note" id="flowNote" hidden></p>
+      <img id="flowImage" alt="Stage data flow diagram">
+    </section>
     <section class="grid" id="portalGrid" aria-label="Portal launcher"></section>
     <section class="empty" id="emptyState" hidden>
       No portal responded yet. Start a stage with <code>./run.sh --start</code> from one of the project folders,
@@ -313,6 +350,43 @@
       return card;
     }
 
+    const localStageGraphics = {
+      "KJ-02": {
+        title: "Stage 2 Data Flow",
+        subtitle: "Producer sends telemetry into Kafka and the consumer streams those records live to the browser over SSE.",
+        image: "./assets/kj-02-stage-flow.svg"
+      },
+      "KJ-03": {
+        title: "Stage 3 Data Flow",
+        subtitle: "Producer fan-out into consumer, alert, and storage flows with DLQ routing from storage.",
+        image: "./assets/kj-03-stage-flow.svg"
+      },
+      "KJ-04": {
+        title: "Stage 4 Data Flow",
+        subtitle: "Producer fan-out with alerting, storage retries, and a dedicated DLQ viewer for failed records.",
+        image: "./assets/kj-04-stage-flow.svg"
+      }
+    };
+
+    async function loadStageGraphic(stageName) {
+      const flowPanel = document.getElementById("flowPanel");
+      const flowTitle = document.getElementById("flowTitle");
+      const flowSubtitle = document.getElementById("flowSubtitle");
+      const flowNote = document.getElementById("flowNote");
+      const flowImage = document.getElementById("flowImage");
+      const graphic = localStageGraphics[stageName];
+      if (!graphic) {
+        flowPanel.hidden = true;
+        return;
+      }
+      flowTitle.textContent = graphic.title;
+      flowSubtitle.textContent = graphic.subtitle;
+      flowNote.hidden = true;
+      flowImage.src = graphic.image;
+      flowImage.alt = `${stageName} data flow diagram`;
+      flowPanel.hidden = false;
+    }
+
     async function init() {
       const grid = document.getElementById("portalGrid");
       const empty = document.getElementById("emptyState");
@@ -343,26 +417,34 @@
         }
       }
 
-      const stage4Up = probeMap["shared-9505"];
-      const stageName = stage4Up ? "KJ-04" : "KJ-03";
-      const stageProfile = stageProfiles[stageName];
+      let activeStageName = null;
+      const stage950xActive = shared950x.some((portal) => probeMap[portal.key]);
+      if (stage950xActive) {
+        const stage4Up = probeMap["shared-9505"];
+        const stageName = stage4Up ? "KJ-04" : "KJ-03";
+        const stageProfile = stageProfiles[stageName];
 
-      for (const portal of shared950x) {
-        if (!probeMap[portal.key]) {
-          continue;
+        for (const portal of shared950x) {
+          if (!probeMap[portal.key]) {
+            continue;
+          }
+          if (portal.kind === "dlq" && !stage4Up) {
+            continue;
+          }
+          if (!stageProfile[portal.kind]) {
+            continue;
+          }
+          activePortals.push({
+            ...stageProfile[portal.kind],
+            key: `${stageName}-${portal.kind}`,
+            url: portal.url,
+            port: portal.port
+          });
         }
-        if (portal.kind === "dlq" && !stage4Up) {
-          continue;
-        }
-        if (!stageProfile[portal.kind]) {
-          continue;
-        }
-        activePortals.push({
-          ...stageProfile[portal.kind],
-          key: `${stageName}-${portal.kind}`,
-          url: portal.url,
-          port: portal.port
-        });
+
+        activeStageName = stageName;
+      } else if (stage2Portals.some((portal) => probeMap[portal.key])) {
+        activeStageName = "KJ-02";
       }
 
       activePortals.forEach((portal, index) => grid.appendChild(renderCard(portal, index)));
@@ -382,6 +464,10 @@
       empty.innerHTML =
         `No portal responded yet on <code>${host}</code>. Start a stage with <code>./run.sh --start</code> ` +
         `from one of the project folders, then refresh this page.`;
+
+      if (activeStageName) {
+        await loadStageGraphic(activeStageName);
+      }
     }
 
     init();
