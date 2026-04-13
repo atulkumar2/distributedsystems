@@ -35,6 +35,7 @@ public class ProducerController {
             event.setTimestamp(Instant.now().toString());
         }
         event.ensureEventId();
+        event.normaliseSchema();
         producer.send(event);
         return ResponseEntity.ok(Map.of(
             "status", "sent",
@@ -60,13 +61,14 @@ public class ProducerController {
     /** Generate and send a random event from available (non-reserved) vehicles. */
     @PostMapping("/api/events/random")
     public ResponseEntity<?> sendRandom(
-            @RequestParam(defaultValue = "0") int vehicleCount) {
+            @RequestParam(defaultValue = "0") int vehicleCount,
+            @RequestParam(defaultValue = "1") int schemaVersion) {
         List<String> subset = vehicleSubset(vehicleCount);
         if (subset.isEmpty()) {
             return ResponseEntity.status(503)
                     .body(Map.of("error", "No available vehicles — all reserved by always-on panel"));
         }
-        TelemetryEvent event = TelemetryEvent.randomFrom(subset);
+        TelemetryEvent event = TelemetryEvent.randomFrom(subset, schemaVersion);
         producer.send(event);
         return ResponseEntity.ok(event);
     }
@@ -85,7 +87,8 @@ public class ProducerController {
             @RequestParam(defaultValue = "10") int count,
             @RequestParam(defaultValue = "1")  int threads,
             @RequestParam(defaultValue = "0")  int vehicleCount,
-            @RequestParam(defaultValue = "0")  int fireAndForgetPct) throws InterruptedException {
+            @RequestParam(defaultValue = "0")  int fireAndForgetPct,
+            @RequestParam(defaultValue = "1")  int schemaVersion) throws InterruptedException {
         count            = Math.min(Math.max(count,            1), 2000);
         threads          = Math.min(Math.max(threads,          1), 16);
         fireAndForgetPct = Math.min(Math.max(fireAndForgetPct, 0), 100);
@@ -101,7 +104,7 @@ public class ProducerController {
         List<TelemetryEvent> events = Collections.synchronizedList(new ArrayList<>(waitCount));
         for (int i = 0; i < waitCount; i++) {
             Future<?> f = pool.submit(() -> {
-                TelemetryEvent event = TelemetryEvent.randomFrom(subset);
+                TelemetryEvent event = TelemetryEvent.randomFrom(subset, schemaVersion);
                 producer.send(event);
                 events.add(event);
             });
@@ -111,7 +114,7 @@ public class ProducerController {
         // Fire-and-forget tasks — submitted to the same pool but futures intentionally
         // not tracked; these threads keep running after the HTTP response is returned.
         for (int i = 0; i < fnfCount; i++) {
-            pool.submit(() -> producer.send(TelemetryEvent.randomFrom(subset)));
+            pool.submit(() -> producer.send(TelemetryEvent.randomFrom(subset, schemaVersion)));
         }
 
         // Stop accepting new tasks; already-queued tasks continue unaffected.

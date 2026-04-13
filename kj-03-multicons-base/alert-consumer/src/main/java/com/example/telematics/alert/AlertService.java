@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -116,6 +117,11 @@ public class AlertService implements ApplicationRunner {
         applySlowMode();
         try {
             TelemetryEvent event = JsonUtil.fromJson(record.value(), TelemetryEvent.class);
+            event.normaliseSchema();
+            if (event.getVehicleId() == null || event.getVehicleId().isBlank()) {
+                log.warn("[partition={}][offset={}] Skipping alert evaluation: missing vehicleId", record.partition(), record.offset());
+                return;
+            }
             String eventId = UUID.randomUUID().toString();
 
             // Mark vehicle as alive; remove any pending offline alert so it can re-arm later.
@@ -272,7 +278,7 @@ public class AlertService implements ApplicationRunner {
             envelope.put("rule",          "vehicle-offline");
             envelope.put("vehicleId",     vehicleId);
             envelope.put("silentSeconds", silentSeconds);
-            payload = JsonUtil.toJson(envelope);
+            payload = Objects.requireNonNull(JsonUtil.toJson(envelope));
         } catch (Exception e) {
             log.warn("Failed to serialise offline SSE payload: {}", e.getMessage());
             return;
@@ -280,7 +286,7 @@ public class AlertService implements ApplicationRunner {
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().data(payload));
+                emitter.send(payload);
             } catch (IOException e) {
                 dead.add(emitter);
             }
@@ -303,12 +309,15 @@ public class AlertService implements ApplicationRunner {
             envelope.put("type",         type);
             envelope.put("rule",         rule);
             envelope.put("vehicleId",    event.getVehicleId());
+            envelope.put("schemaVersion", event.getSchemaVersion());
             envelope.put("speed",        event.getSpeed());
             envelope.put("fuelLevel",    event.getFuelLevel());
+            if (event.getBatteryHealth() != null) envelope.put("batteryHealth", event.getBatteryHealth());
+            if (event.getOdometerKm() != null) envelope.put("odometerKm", event.getOdometerKm());
             envelope.put("engineStatus", event.getEngineStatus());
             envelope.put("timestamp",    event.getTimestamp());
             if (delta != 0) envelope.put("delta", delta);
-            payload = JsonUtil.toJson(envelope);
+            payload = Objects.requireNonNull(JsonUtil.toJson(envelope));
         } catch (Exception e) {
             log.warn("Failed to serialise SSE alert payload: {}", e.getMessage());
             return;
@@ -316,7 +325,7 @@ public class AlertService implements ApplicationRunner {
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().data(payload));
+                emitter.send(payload);
             } catch (IOException e) {
                 dead.add(emitter);
             }

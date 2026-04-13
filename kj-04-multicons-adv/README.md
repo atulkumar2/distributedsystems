@@ -42,6 +42,57 @@ rolling file logs. The stage apps run against the shared repo-level Postgres + K
  └─────────────────────────┘
 ```
 
+### Event schema versions
+
+Telemetry payloads are now explicitly versioned to support contract evolution.
+
+- v1 (`schemaVersion: 1`) fields:
+        - `eventId`, `vehicleId`, `timestamp`, `latitude`, `longitude`, `speed`, `fuelLevel`, `engineStatus`
+- v2 (`schemaVersion: 2`) adds:
+        - `batteryHealth` (0-100)
+        - `odometerKm` (>= 0)
+
+Examples:
+
+```json
+{
+        "schemaVersion": 1,
+        "vehicleId": "VH-0001",
+        "timestamp": "2026-04-14T12:00:00Z",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "speed": 62.4,
+        "fuelLevel": 41.8,
+        "engineStatus": "ON"
+}
+```
+
+```json
+{
+        "schemaVersion": 2,
+        "vehicleId": "VH-0001",
+        "timestamp": "2026-04-14T12:00:00Z",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "speed": 62.4,
+        "fuelLevel": 41.8,
+        "engineStatus": "ON",
+        "batteryHealth": 94.2,
+        "odometerKm": 51234.7
+}
+```
+
+Compatibility behavior:
+
+- Consumers infer v1 when `schemaVersion` is missing.
+- Unknown JSON fields are ignored during deserialization (forward compatibility).
+- Storage persists v2 fields in nullable columns while still accepting v1 events.
+
+Producer API support:
+
+- `POST /api/events/random?schemaVersion=1|2`
+- `POST /api/events/burst?...&schemaVersion=1|2`
+
 ### 8 alert rules (Alert Consumer)
 
 | Priority | Rule | Condition | Type |

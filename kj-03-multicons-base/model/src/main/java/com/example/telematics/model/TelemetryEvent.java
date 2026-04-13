@@ -24,6 +24,9 @@ public class TelemetryEvent {
     private double speed;       // km/h
     private double fuelLevel;   // percent 0–100
     private String engineStatus; // "ON" | "OFF" | "IDLE"
+    private Integer schemaVersion; // v1 base contract, v2 adds optional fields
+    private Double batteryHealth;  // percent 0–100 (v2)
+    private Double odometerKm;     // cumulative distance in km (v2)
 
     public TelemetryEvent() {}
 
@@ -37,6 +40,24 @@ public class TelemetryEvent {
         this.speed         = speed;
         this.fuelLevel     = fuelLevel;
         this.engineStatus  = engineStatus;
+        this.schemaVersion = 1;
+    }
+
+    public TelemetryEvent(String vehicleId, String timestamp, double latitude,
+                          double longitude, double speed, double fuelLevel,
+                          String engineStatus, Integer schemaVersion,
+                          Double batteryHealth, Double odometerKm) {
+        this.vehicleId      = vehicleId;
+        this.timestamp      = timestamp;
+        this.latitude       = latitude;
+        this.longitude      = longitude;
+        this.speed          = speed;
+        this.fuelLevel      = fuelLevel;
+        this.engineStatus   = engineStatus;
+        this.schemaVersion  = schemaVersion;
+        this.batteryHealth  = batteryHealth;
+        this.odometerKm     = odometerKm;
+        normaliseSchema();
     }
 
     // ── Vehicle registry ──────────────────────────────────────────────────────
@@ -69,6 +90,14 @@ public class TelemetryEvent {
      * Useful for burst scenarios where only the first N vehicles should be active.
      */
     public static TelemetryEvent randomFrom(List<String> vehicleIds) {
+        return randomFrom(vehicleIds, 1);
+    }
+
+    /**
+     * Creates random events for a specific schema contract version.
+     * v1 emits the base fields; v2 also emits batteryHealth and odometerKm.
+     */
+    public static TelemetryEvent randomFrom(List<String> vehicleIds, int schemaVersion) {
         Random r = new Random();
         String[] statuses  = {"ON", "ON", "ON", "IDLE"};
         TelemetryEvent event = new TelemetryEvent(
@@ -80,7 +109,15 @@ public class TelemetryEvent {
             round1(r.nextDouble() * 100),             // fuel 0–100
             statuses[r.nextInt(statuses.length)]
         );
+        if (schemaVersion >= 2) {
+            event.setSchemaVersion(2);
+            event.setBatteryHealth(round1(70 + r.nextDouble() * 30));      // 70–100%
+            event.setOdometerKm(round1(5_000 + r.nextDouble() * 195_000)); // 5k–200k km
+        } else {
+            event.setSchemaVersion(1);
+        }
         event.ensureEventId();
+        event.normaliseSchema();
         return event;
     }
 
@@ -110,9 +147,35 @@ public class TelemetryEvent {
     public String getEngineStatus()            { return engineStatus; }
     public void   setEngineStatus(String s)    { this.engineStatus = s; }
 
+    public Integer getSchemaVersion()          { return schemaVersion == null ? 1 : schemaVersion; }
+    public void    setSchemaVersion(Integer v) { this.schemaVersion = v; }
+
+    public Double getBatteryHealth()            { return batteryHealth; }
+    public void   setBatteryHealth(Double v)    { this.batteryHealth = v; }
+
+    public Double getOdometerKm()               { return odometerKm; }
+    public void   setOdometerKm(Double v)       { this.odometerKm = v; }
+
     public void ensureEventId() {
         if (eventId == null || eventId.isBlank()) {
             eventId = UUID.randomUUID().toString();
+        }
+    }
+
+    /**
+     * Keeps payloads backward compatible when some producers omit schemaVersion.
+     * If extra v2 fields are present with no version set, infer v2.
+     */
+    public void normaliseSchema() {
+        if (schemaVersion == null) {
+            schemaVersion = (batteryHealth != null || odometerKm != null) ? 2 : 1;
+        }
+        if (schemaVersion <= 1) {
+            schemaVersion = 1;
+            batteryHealth = null;
+            odometerKm = null;
+        } else {
+            schemaVersion = 2;
         }
     }
 

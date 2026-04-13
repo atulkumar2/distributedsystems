@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,11 +73,11 @@ public class DlqViewerService implements ApplicationRunner {
 
     private void pushToSse(DlqViewerRecord record) {
         if (emitters.isEmpty()) return;
-        String payload = JsonUtil.toJson(record);
+        String payload = Objects.requireNonNull(JsonUtil.toJson(record));
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().data(payload));
+                emitter.send(payload);
             } catch (IOException e) {
                 dead.add(emitter);
             }

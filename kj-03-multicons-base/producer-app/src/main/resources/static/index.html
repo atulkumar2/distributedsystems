@@ -160,6 +160,13 @@
         <input type="range" id="fafPct" min="0" max="100" value="0" step="5"
                oninput="document.getElementById('fafPctDisplay').textContent=this.value">
       </div>
+      <div>
+        <label for="schemaVersion">Schema Version for random/burst sends</label>
+        <select id="schemaVersion">
+          <option value="1" selected>v1 (base telemetry contract)</option>
+          <option value="2">v2 (+ batteryHealth, + odometerKm)</option>
+        </select>
+      </div>
     </div>
     <div id="progressWrap" class="progress-bar-wrap" style="display:none">
       <div class="progress-bar" id="progressBar" style="width:0%"></div>
@@ -238,11 +245,12 @@
 
     async function sendRandom() {
       try {
-        const res = await fetch('/api/events/random', { method: 'POST' });
+        const schemaVersion = parseInt(document.getElementById('schemaVersion').value) || 1;
+        const res = await fetch('/api/events/random?schemaVersion=' + schemaVersion, { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
         const event = await res.json();
         addRow(event);
-        showToast('Sent ' + event.vehicleId);
+        showToast('Sent ' + event.vehicleId + ' (v' + schemaVersion + ')');
       } catch (e) { showToast('Error: ' + e.message, true); }
     }
 
@@ -277,6 +285,7 @@
       const delay        = parseInt(document.getElementById('burstDelay').value) || 0;
       const threads      = parseInt(document.getElementById('burstThreads').value) || 1;
       const vehicleCount = parseInt(document.getElementById('burstVehicles').value) || 0;
+      const schemaVersion = parseInt(document.getElementById('schemaVersion').value) || 1;
       isBursting   = true;
       burstAborted = false;
       document.getElementById('burstBtn').disabled = true;
@@ -290,9 +299,9 @@
       if (delay === 0) {
         // Fast path: single server-side batch call, events sent across `threads` threads
         const fafPct = parseInt(document.getElementById('fafPct').value) || 0;
-        const url = '/api/events/burst?count=' + total + '&threads=' + threads + '&vehicleCount=' + vehicleCount + '&fireAndForgetPct=' + fafPct;
+        const url = '/api/events/burst?count=' + total + '&threads=' + threads + '&vehicleCount=' + vehicleCount + '&fireAndForgetPct=' + fafPct + '&schemaVersion=' + schemaVersion;
         const fafLabel = fafPct > 0 ? ' (' + fafPct + '% fire \u0026 forget)' : '';
-        status.textContent = 'Sending ' + total + ' events across ' + threads + ' thread' + (threads > 1 ? 's' : '') + fafLabel + '\u2026';
+        status.textContent = 'Sending ' + total + ' events across ' + threads + ' thread' + (threads > 1 ? 's' : '') + ' using schema v' + schemaVersion + fafLabel + '\u2026';
         try {
           const res = await fetch(url, { method: 'POST' });
           if (!res.ok) throw new Error(await res.text());
@@ -312,7 +321,7 @@
         for (let i = 0; i < total; i++) {
           if (burstAborted) break;
           try {
-            const res = await fetch('/api/events/random?vehicleCount=' + vehicleCount, { method: 'POST' });
+            const res = await fetch('/api/events/random?vehicleCount=' + vehicleCount + '&schemaVersion=' + schemaVersion, { method: 'POST' });
             if (res.ok) {
               const ev = await res.json();
               addRow(ev);

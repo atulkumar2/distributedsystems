@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -90,6 +91,7 @@ public class StorageService implements ApplicationRunner {
         String eventId = null;
         try {
             event = JsonUtil.fromJson(record.value(), TelemetryEvent.class);
+            event.normaliseSchema();
             validateEvent(event);
             eventId = ensureEventIdentity(event, record);
 
@@ -212,6 +214,23 @@ public class StorageService implements ApplicationRunner {
         if (event.getEngineStatus() == null || event.getEngineStatus().isBlank()) {
             throw new InvalidPayloadException("engineStatus is missing");
         }
+        int schemaVersion = event.getSchemaVersion();
+        if (schemaVersion != 1 && schemaVersion != 2) {
+            throw new InvalidPayloadException("schemaVersion must be 1 or 2");
+        }
+        if (schemaVersion == 2) {
+            if (event.getBatteryHealth() == null
+                    || Double.isNaN(event.getBatteryHealth())
+                    || event.getBatteryHealth() < 0
+                    || event.getBatteryHealth() > 100) {
+                throw new InvalidPayloadException("batteryHealth must be between 0 and 100 for schemaVersion=2");
+            }
+            if (event.getOdometerKm() == null
+                    || Double.isNaN(event.getOdometerKm())
+                    || event.getOdometerKm() < 0) {
+                throw new InvalidPayloadException("odometerKm must be >= 0 for schemaVersion=2");
+            }
+        }
     }
 
     private TelemetryEvent buildFallbackEvent(ConsumerRecord<String, String> record) {
@@ -240,7 +259,7 @@ public class StorageService implements ApplicationRunner {
             Map<String, Object> envelope = new HashMap<>();
             envelope.put("status", status);
             envelope.put("event", event);
-            payload = JsonUtil.toJson(envelope);
+            payload = Objects.requireNonNull(JsonUtil.toJson(envelope));
         } catch (Exception e) {
             log.warn("Failed to serialise SSE payload: {}", e.getMessage());
             return;
@@ -248,7 +267,7 @@ public class StorageService implements ApplicationRunner {
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : emitters) {
             try {
-                emitter.send(SseEmitter.event().data(payload));
+                emitter.send(payload);
             } catch (IOException e) {
                 dead.add(emitter);
             }
