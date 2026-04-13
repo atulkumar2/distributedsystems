@@ -3,9 +3,9 @@ services:
     build:
       context: ..
       dockerfile: web-apps/portal-hub/Dockerfile
-    container_name: telemetry-portal-hub
+    container_name: ${PORTAL_HUB_CONTAINER_NAME:-telemetry-portal-hub}
     ports:
-      - "9500:80"
+      - "${PORTAL_HUB_HOST_PORT:-9500}:80"
     restart: on-failure
     networks:
       - default
@@ -14,4 +14,4 @@ services:
 networks:
   shared:
     external: true
-    name: ds-shared
+    name: ${SHARED_NETWORK_NAME:-ds-shared}

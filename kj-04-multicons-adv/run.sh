@@ -29,17 +29,39 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
+INFRA_ENV_FILE="$REPO_ROOT/infra/.env"
 WEB_APPS_COMPOSE_FILE="$REPO_ROOT/web-apps/docker-compose.yml"
-KAFKA_CONTAINER="kafka-shared"
+ENV_FILE="$SCRIPT_DIR/.env"
+
+if [[ -f "$INFRA_ENV_FILE" ]]; then
+  set -a
+  source "$INFRA_ENV_FILE"
+  set +a
+fi
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
+KAFKA_CONTAINER="${KAFKA_CONTAINER_NAME:-kafka-shared}"
 STACK_CONTAINERS=(
-  telemetry-portal-hub
-  telemetry-storage-consumer
-  telemetry-alert-consumer
-  telemetry-dlq-viewer
-  telemetry-producer
-  telemetry-consumer
+  "${PORTAL_HUB_CONTAINER_NAME:-telemetry-portal-hub}"
+  "${STORAGE_CONSUMER_CONTAINER_NAME:-telemetry-storage-consumer}"
+  "${ALERT_CONSUMER_CONTAINER_NAME:-telemetry-alert-consumer}"
+  "${DLQ_VIEWER_CONTAINER_NAME:-telemetry-dlq-viewer}"
+  "${PRODUCER_CONTAINER_NAME:-telemetry-producer}"
+  "${CONSUMER_CONTAINER_NAME:-telemetry-consumer}"
 )
-BLOCKER_PORTS=(9500 9501 9502 9503 9504 9505)
+BLOCKER_PORTS=(
+  "${PORTAL_HUB_HOST_PORT:-9500}"
+  "${PRODUCER_HOST_PORT:-9501}"
+  "${CONSUMER_HOST_PORT:-9502}"
+  "${ALERT_CONSUMER_HOST_PORT:-9503}"
+  "${STORAGE_CONSUMER_HOST_PORT:-9504}"
+  "${DLQ_VIEWER_HOST_PORT:-9505}"
+)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
 
@@ -64,7 +86,9 @@ ensure_prereqs() {
   command -v docker > /dev/null 2>&1 || error "docker not found. Please install Docker Desktop or Docker Engine."
   [[ -f "$COMPOSE_FILE" ]] || error "docker-compose.yml not found in project root."
   [[ -f "$INFRA_COMPOSE_FILE" ]] || error "Shared infra compose file not found at $INFRA_COMPOSE_FILE."
+  [[ -f "$INFRA_ENV_FILE" ]] || error "Shared infra .env file not found at $INFRA_ENV_FILE."
   [[ -f "$WEB_APPS_COMPOSE_FILE" ]] || error "Shared web-apps compose file not found at $WEB_APPS_COMPOSE_FILE."
+  [[ -f "$ENV_FILE" ]] || error ".env not found in project root."
   docker compose version > /dev/null 2>&1 || error "'docker compose' (v2) not available. Install the Compose plugin."
   docker info > /dev/null 2>&1 || error "Docker daemon is not running."
 }
@@ -104,55 +128,55 @@ show_next_steps() {
 
   echo "  ${BOLD}Open these URLs in your browser:${RESET}"
   echo ""
-  url "  http://localhost:9500        Portal Hub          — launch all dashboards from one page"
-  url "  http://localhost:9501        Producer UI         — fill the form or click Randomise & Send"
-  url "  http://localhost:9502        Consumer UI         — live event stream via SSE"
-  url "  http://localhost:9503        Alert Consumer      — ALERT / WARNING / OK live feed"
-  url "  http://localhost:9504        Storage Consumer    — Postgres-backed event store + SSE feed"
-  url "  http://localhost:9505        DLQ Viewer          — inspect failed events with metadata"
-  url "  postgres://telematics:telematics@localhost:5432/telemetry"
-  url "  http://localhost:8080        Kafka UI            — topics, partitions, consumer lag"
-  url "  http://localhost:9000        Portainer           — inspect containers and volumes"
+  url "  http://localhost:${PORTAL_HUB_HOST_PORT:-9500}        Portal Hub          — launch all dashboards from one page"
+  url "  http://localhost:${PRODUCER_HOST_PORT:-9501}        Producer UI         — fill the form or click Randomise & Send"
+  url "  http://localhost:${CONSUMER_HOST_PORT:-9502}        Consumer UI         — live event stream via SSE"
+  url "  http://localhost:${ALERT_CONSUMER_HOST_PORT:-9503}        Alert Consumer      — ALERT / WARNING / OK live feed"
+  url "  http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504}        Storage Consumer    — Postgres-backed event store + SSE feed"
+  url "  http://localhost:${DLQ_VIEWER_HOST_PORT:-9505}        DLQ Viewer          — inspect failed events with metadata"
+  url "  postgres://${POSTGRES_USER:-telematics}:${POSTGRES_PASSWORD:-telematics}@localhost:${POSTGRES_HOST_PORT:-55432}/${POSTGRES_DB:-telemetry}"
+  url "  http://localhost:${KAFKA_UI_HOST_PORT:-8080}        Kafka UI            — topics, partitions, consumer lag"
+  url "  http://localhost:${PORTAINER_HTTP_PORT:-9000}        Portainer           — inspect containers and volumes"
   echo ""
 
   if [[ "$HOST_IP" != "YOUR_HOST_IP" && "$HOST_IP" != "127.0.0.1" ]]; then
     echo "  ${BOLD}From a remote machine, replace localhost with ${CYAN}${HOST_IP}${RESET}${BOLD}:${RESET}"
     echo ""
-    url "  http://${HOST_IP}:9500"
-    url "  http://${HOST_IP}:9501"
-    url "  http://${HOST_IP}:9502"
-    url "  http://${HOST_IP}:9503"
-    url "  http://${HOST_IP}:9504"
-    url "  http://${HOST_IP}:9505"
-    url "  http://${HOST_IP}:8080"
+    url "  http://${HOST_IP}:${PORTAL_HUB_HOST_PORT:-9500}"
+    url "  http://${HOST_IP}:${PRODUCER_HOST_PORT:-9501}"
+    url "  http://${HOST_IP}:${CONSUMER_HOST_PORT:-9502}"
+    url "  http://${HOST_IP}:${ALERT_CONSUMER_HOST_PORT:-9503}"
+    url "  http://${HOST_IP}:${STORAGE_CONSUMER_HOST_PORT:-9504}"
+    url "  http://${HOST_IP}:${DLQ_VIEWER_HOST_PORT:-9505}"
+    url "  http://${HOST_IP}:${KAFKA_UI_HOST_PORT:-8080}"
     echo ""
   fi
 
   header "Guided learning steps"
 
   step "${BOLD}Step 1 — Send events${RESET}"
-  note "Open http://localhost:9500 to launch any portal, then go to Producer UI on http://localhost:9501 and click 'Randomise & Send' 5-10 times."
+  note "Open http://localhost:${PORTAL_HUB_HOST_PORT:-9500} to launch any portal, then go to Producer UI on http://localhost:${PRODUCER_HOST_PORT:-9501} and click 'Randomise & Send' 5-10 times."
   echo ""
 
   step "${BOLD}Step 2 — Watch the live stream${RESET}"
-  note "Open http://localhost:9502 — events arrive in real time via SSE."
+  note "Open http://localhost:${CONSUMER_HOST_PORT:-9502} — events arrive in real time via SSE."
   echo ""
 
   step "${BOLD}Step 3 — Inspect the event store${RESET}"
-  note "Open http://localhost:9504 — the table shows the latest event per vehicle sourced from Postgres."
+  note "Open http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504} — the table shows the latest event per vehicle sourced from Postgres."
   note "The live feed panel shows STORED (green) or DLQ (red) per record."
-  note "Query the raw sink with: psql postgres://telematics:telematics@localhost:5432/telemetry -c 'select count(*) from telemetry_events;'"
+  note "Query the raw sink with: psql postgres://${POSTGRES_USER:-telematics}:${POSTGRES_PASSWORD:-telematics}@localhost:${POSTGRES_HOST_PORT:-55432}/${POSTGRES_DB:-telemetry} -c 'select count(*) from telemetry_events;'"
   echo ""
 
   step "${BOLD}Step 4 — Watch alert classification${RESET}"
-  note "Open http://localhost:9503 — each event is tagged ALERT / WARNING / OK."
+  note "Open http://localhost:${ALERT_CONSUMER_HOST_PORT:-9503} — each event is tagged ALERT / WARNING / OK."
   note "Thresholds: speed > 100 km/h -> ALERT, fuelLevel < 20 % -> WARNING."
   echo ""
 
   step "${BOLD}Step 5 — Trigger a DLQ event${RESET}"
   note "On the producer form, set speed above 120 km/h and send."
-  note "Check http://localhost:9504 feed — that event should show DLQ (red)."
-  note "Open http://localhost:9505 to inspect the failed record's original event, error reason, timestamp, partition, and offset."
+  note "Check http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504} feed — that event should show DLQ (red)."
+  note "Open http://localhost:${DLQ_VIEWER_HOST_PORT:-9505} to inspect the failed record's original event, error reason, timestamp, partition, and offset."
   echo ""
 
   step "${BOLD}Step 6 — Observe fan-out (same message, two groups)${RESET}"
@@ -218,8 +242,8 @@ start_stack() {
     fi
   done
 
-  docker compose -f "$INFRA_COMPOSE_FILE" up -d
-  docker compose -f "$WEB_APPS_COMPOSE_FILE" up -d --build
+  docker compose --env-file "$INFRA_ENV_FILE" -f "$INFRA_COMPOSE_FILE" up -d
+  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$WEB_APPS_COMPOSE_FILE" up -d --build
 
   local retries=45
   until docker exec "$KAFKA_CONTAINER" \
@@ -230,13 +254,13 @@ start_stack() {
     sleep 1
   done
 
-  SLOW_MODE="$slow_mode" docker compose -f "$COMPOSE_FILE" up --build $detach
+  SLOW_MODE="$slow_mode" docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$COMPOSE_FILE" up --build $detach
 }
 
 stop_stack() {
   ensure_prereqs
   header "Stopping stack"
-  docker compose -f "$COMPOSE_FILE" down
+  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$COMPOSE_FILE" down
   step "Project stack stopped."
 }
 

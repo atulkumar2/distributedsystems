@@ -6,14 +6,14 @@ services:
     build:
       context: .                                    # kj-04-multicons-adv/ is the build context
       dockerfile: storage-consumer/Dockerfile
-    container_name: telemetry-storage-consumer
+    container_name: ${STORAGE_CONSUMER_CONTAINER_NAME:-telemetry-storage-consumer}
     ports:
-      - "9504:9504"
+      - "${STORAGE_CONSUMER_HOST_PORT:-9504}:9504"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shared:5432/telemetry
-      SPRING_DATASOURCE_USERNAME: telematics
-      SPRING_DATASOURCE_PASSWORD: telematics
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_CONTAINER_NAME:-ds-telemetry-postgres}:5432/${POSTGRES_DB:-telemetry}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-telematics}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-telematics}
       SLOW_MODE: "false"    # change to "true" to observe lag
     restart: on-failure
     networks:
@@ -27,11 +27,11 @@ services:
     build:
       context: .
       dockerfile: alert-consumer/Dockerfile
-    container_name: telemetry-alert-consumer
+    container_name: ${ALERT_CONSUMER_CONTAINER_NAME:-telemetry-alert-consumer}
     ports:
-      - "9503:9503"
+      - "${ALERT_CONSUMER_HOST_PORT:-9503}:9503"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
       SLOW_MODE: "false"
     restart: on-failure
     networks:
@@ -44,11 +44,11 @@ services:
     build:
       context: .
       dockerfile: dlq-viewer/Dockerfile
-    container_name: telemetry-dlq-viewer
+    container_name: ${DLQ_VIEWER_CONTAINER_NAME:-telemetry-dlq-viewer}
     ports:
-      - "9505:9505"
+      - "${DLQ_VIEWER_HOST_PORT:-9505}:9505"
     environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: on-failure
     networks:
       - default
@@ -61,11 +61,11 @@ services:
     build:
       context: .
       dockerfile: producer-app/Dockerfile
-    container_name: telemetry-producer
+    container_name: ${PRODUCER_CONTAINER_NAME:-telemetry-producer}
     ports:
-      - "9501:9501"
+      - "${PRODUCER_HOST_PORT:-9501}:9501"
     environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: on-failure
     networks:
       - default
@@ -78,11 +78,11 @@ services:
     build:
       context: .
       dockerfile: consumer-app/Dockerfile
-    container_name: telemetry-consumer
+    container_name: ${CONSUMER_CONTAINER_NAME:-telemetry-consumer}
     ports:
-      - "9502:9502"
+      - "${CONSUMER_HOST_PORT:-9502}:9502"
     environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
     restart: on-failure
     networks:
       - default
@@ -91,4 +91,4 @@ services:
 networks:
   shared:
     external: true
-    name: ds-shared
+    name: ${SHARED_NETWORK_NAME:-ds-shared}

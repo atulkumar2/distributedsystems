@@ -1,0 +1,33 @@
+services:
+  adminer:
+    image: adminer:4
+    container_name: ${ADMINER_CONTAINER_NAME:-adminer-shared}
+    ports:
+      - "${ADMINER_HOST_PORT:-8081}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: ${ADMINER_DEFAULT_SERVER:-ds-telemetry-postgres}
+    networks:
+      - shared
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: ${PORTAINER_CONTAINER_NAME:-portainer-shared}
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "${PORTAINER_HTTP_PORT:-9000}:9000"
+      - "${PORTAINER_HTTPS_PORT:-9443}:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    restart: unless-stopped
+    networks:
+      - shared
+
+networks:
+  shared:
+    name: ${SHARED_NETWORK_NAME:-ds-shared}
+    external: true
+
+volumes:
+  portainer-data:
+    name: ${PORTAINER_VOLUME_NAME:-global-portainer-data}

@@ -40,3 +40,4 @@ logs/
 # Environment / secrets — never commit
 .env
 .env.*
+!.env.template

@@ -134,6 +134,21 @@ kj-04-multicons-adv/
 
 ## How to Run
 
+### Centralized settings
+
+Stage-specific ports and container names live in `.env` in this folder.
+
+Shared infra values such as Postgres host port, shared network name, and shared container names live in `../infra/.env`.
+
+Bootstrap both env files from the committed templates before first run:
+
+```bash
+cp ../infra/.env.template ../infra/.env
+cp .env.template .env
+```
+
+The helper script loads both files so you can change ports and names without editing Compose YAML or shell logic.
+
 ### Option A — Docker Compose (recommended)
 
 ```bash
@@ -155,7 +170,7 @@ Slow mode for lag simulation:
 This starts:
 
 - Shared Kafka broker on `localhost:9092` if it is not already running
-- Postgres on `localhost:5432` (`telematics` / `telematics`, database `telemetry`)
+- Postgres on `localhost:55432` (`telematics` / `telematics`, database `telemetry`)
 - **Portal Hub** at <http://localhost:9500> — shared launcher that shows only reachable dashboards
 - Kafka UI at <http://localhost:8080>
 - Portainer at <http://localhost:9000>
@@ -190,7 +205,7 @@ Override Kafka address:
 
 ```bash
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092 \
-SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/telemetry \
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:55432/telemetry \
 SPRING_DATASOURCE_USERNAME=telematics \
 SPRING_DATASOURCE_PASSWORD=telematics \
 java -jar storage-consumer/target/storage-consumer-*.jar
@@ -235,7 +250,7 @@ Rolling policy: 10 MB per file, daily rotation, 7-day history, gzip-compressed a
 | Postgres-backed latest state per vehicle | <http://localhost:9504> → event store table |
 | Storage Consumer SSE feed (STORED / DLQ) | <http://localhost:9504> → live feed panel |
 | Storage Consumer metrics | <http://localhost:9504> → metrics bar |
-| Query persisted telemetry rows | `psql postgres://telematics:telematics@localhost:5432/telemetry -c "select vehicle_id, count(*) from telemetry_events group by vehicle_id order by vehicle_id;"` |
+| Query persisted telemetry rows | `psql postgres://telematics:telematics@localhost:55432/telemetry -c "select vehicle_id, count(*) from telemetry_events group by vehicle_id order by vehicle_id;"` |
 | DLQ record details without Kafka UI | <http://localhost:9505> → original event, error, timestamp, partition, offset |
 | Both consumer groups receive same Kafka message | Kafka UI → Topics → vehicle-telemetry → Messages |
 | DLQ receives events with speed > 120 | Kafka UI → Topics → vehicle-telemetry-dlq |
@@ -262,7 +277,7 @@ Override at runtime via environment variables:
 | --- | --- | --- |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker address |
 | `SLOW_MODE` | `false` | Set `true` to sleep 200–500 ms per message in storage-consumer |
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/telemetry` | Postgres sink JDBC URL |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:55432/telemetry` | Postgres sink JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | `telematics` | Postgres username |
 | `SPRING_DATASOURCE_PASSWORD` | `telematics` | Postgres password |
 
