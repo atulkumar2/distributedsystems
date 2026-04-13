@@ -22,30 +22,98 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yml"
 TOOLS_COMPOSE_FILE="$SCRIPT_DIR/docker-compose.tools.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  source "$ENV_FILE"
-  set +a
-fi
-
-KAFKA_CONTAINER="${KAFKA_CONTAINER_NAME:-kafka-shared}"
-BLOCKER_PORTS=(
-  "${POSTGRES_HOST_PORT:-55432}"
-  "${KAFKA_HOST_PORT:-9092}"
-  "${KAFKA_UI_HOST_PORT:-8080}"
-  "${ADMINER_HOST_PORT:-8081}"
-  "${PORTAINER_HTTP_PORT:-9000}"
-  "${PORTAINER_HTTPS_PORT:-9443}"
-)
-STACK_CONTAINERS=(
-  "${POSTGRES_CONTAINER_NAME:-ds-telemetry-postgres}"
-  "${KAFKA_CONTAINER_NAME:-kafka-shared}"
-  "${KAFKA_UI_CONTAINER_NAME:-kafka-ui-shared}"
-  "${ADMINER_CONTAINER_NAME:-adminer-shared}"
-  "${PORTAINER_CONTAINER_NAME:-portainer-shared}"
-)
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
+CORE_CONFIG=""
+TOOLS_CONFIG=""
+
+core_compose() {
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+tools_compose() {
+  docker compose --env-file "$ENV_FILE" -f "$TOOLS_COMPOSE_FILE" "$@"
+}
+
+refresh_compose_config() {
+  CORE_CONFIG="$(core_compose config)"
+  TOOLS_CONFIG="$(tools_compose config)"
+}
+
+config_container_names() {
+  local config="$1"
+  awk '$1 == "container_name:" { print $2 }' <<<"$config"
+}
+
+config_published_ports() {
+  local config="$1"
+  awk '$1 == "published:" { gsub(/"/, "", $2); print $2 }' <<<"$config"
+}
+
+config_service_container_name() {
+  local config="$1"
+  local service="$2"
+  awk -v svc="$service" '
+    /^  [^[:space:]].*:/ {
+      current = $1
+      sub(":", "", current)
+    }
+    current == svc && $1 == "container_name:" {
+      print $2
+      exit
+    }
+  ' <<<"$config"
+}
+
+config_service_published_port() {
+  local config="$1"
+  local service="$2"
+  local target_port="$3"
+  awk -v svc="$service" -v wanted="$target_port" '
+    /^  [^[:space:]].*:/ {
+      current = $1
+      sub(":", "", current)
+      target = ""
+    }
+    current == svc && $1 == "target:" {
+      gsub(/"/, "", $2)
+      target = $2
+    }
+    current == svc && $1 == "published:" && target == wanted {
+      gsub(/"/, "", $2)
+      print $2
+      exit
+    }
+  ' <<<"$config"
+}
+
+config_service_environment_value() {
+  local config="$1"
+  local service="$2"
+  local key="$3"
+  awk -v svc="$service" -v wanted="$key" '
+    /^  [^[:space:]].*:/ {
+      current = $1
+      sub(":", "", current)
+      in_env = 0
+    }
+    current == svc && /^    environment:$/ {
+      in_env = 1
+      next
+    }
+    current == svc && in_env && /^    [^[:space:]].*:/ {
+      in_env = 0
+    }
+    current == svc && in_env && /^      / {
+      field = $1
+      sub(":", "", field)
+      if (field == wanted) {
+        gsub(/"/, "", $2)
+        print $2
+        exit
+      }
+    }
+  ' <<<"$config"
+}
 
 usage() {
   cat <<'EOF'
@@ -80,28 +148,41 @@ remove_container_if_present() {
 
 stop_port_blockers() {
   local port cid names
-  for port in "${BLOCKER_PORTS[@]}"; do
+  while IFS= read -r port; do
+    [[ -n "$port" ]] || continue
     while IFS= read -r cid; do
       [[ -n "$cid" ]] || continue
       names="$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##' || true)"
       warn "Removing Docker container '$names' blocking host port $port..."
       docker rm -f "$cid" > /dev/null
     done < <(docker ps -q --filter "publish=$port")
-  done
+  done < <(
+    config_published_ports "$CORE_CONFIG"
+    config_published_ports "$TOOLS_CONFIG"
+  )
 }
 
 stop_blockers() {
   ensure_prereqs
+  refresh_compose_config
   info "Stopping blockers for shared infra..."
-  for cname in "${STACK_CONTAINERS[@]}" "${LEGACY_CONTAINERS[@]}"; do
+  for cname in "${LEGACY_CONTAINERS[@]}"; do
     remove_container_if_present "$cname"
   done
+  while IFS= read -r cname; do
+    [[ -n "$cname" ]] || continue
+    remove_container_if_present "$cname"
+  done < <(
+    config_container_names "$CORE_CONFIG"
+    config_container_names "$TOOLS_CONFIG"
+  )
   stop_port_blockers
   success "Blockers cleared."
 }
 
 start_stack() {
   ensure_prereqs
+  refresh_compose_config
 
   info "Starting shared Postgres, Kafka, and Kafka UI..."
   for cname in "${LEGACY_CONTAINERS[@]}"; do
@@ -111,11 +192,11 @@ start_stack() {
     fi
   done
 
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d
+  core_compose up -d
 
   info "Waiting for shared Kafka broker to be ready..."
   local retries=45
-  until docker exec "$KAFKA_CONTAINER" \
+  until core_compose exec -T kafka \
           /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:29092 \
           > /dev/null 2>&1; do
     retries=$((retries - 1))
@@ -125,37 +206,38 @@ start_stack() {
 
   success "Shared Kafka broker is ready at localhost:9092"
   echo ""
-  echo -e "  ${CYAN}Postgres${NC}     →  postgres://${POSTGRES_USER:-telematics}:${POSTGRES_PASSWORD:-telematics}@localhost:${POSTGRES_HOST_PORT:-55432}/${POSTGRES_DB:-telemetry}"
-  echo -e "  ${CYAN}Kafka broker${NC} →  localhost:${KAFKA_HOST_PORT:-9092}"
-  echo -e "  ${CYAN}Kafka UI${NC}     →  http://localhost:${KAFKA_UI_HOST_PORT:-8080}"
+  echo -e "  ${CYAN}Postgres${NC}     →  postgres://$(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_USER):$(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_PASSWORD)@localhost:$(config_service_published_port "$CORE_CONFIG" postgres 5432)/$(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_DB)"
+  echo -e "  ${CYAN}Kafka broker${NC} →  localhost:$(config_service_published_port "$CORE_CONFIG" kafka 9092)"
+  echo -e "  ${CYAN}Kafka UI${NC}     →  http://localhost:$(config_service_published_port "$CORE_CONFIG" kafka-ui 8080)"
   echo -e "  ${CYAN}Tools stack${NC}  →  ./run.sh --start-tools (Adminer/Portainer)"
   echo ""
-  echo -e "  ${CYAN}Adminer login${NC} →  System: PostgreSQL | Server: ${ADMINER_DEFAULT_SERVER:-ds-telemetry-postgres} | Username: ${POSTGRES_USER:-telematics} | Password: ${POSTGRES_PASSWORD:-telematics} | Database: ${POSTGRES_DB:-telemetry}"
+  echo -e "  ${CYAN}Adminer login${NC} →  System: PostgreSQL | Server: $(config_service_environment_value "$TOOLS_CONFIG" adminer ADMINER_DEFAULT_SERVER) | Username: $(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_USER) | Password: $(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_PASSWORD) | Database: $(config_service_environment_value "$CORE_CONFIG" postgres POSTGRES_DB)"
   echo ""
 }
 
 start_tools_stack() {
   ensure_prereqs
+  refresh_compose_config
   info "Starting optional tooling stack (Adminer and Portainer)..."
-  docker compose --env-file "$ENV_FILE" -f "$TOOLS_COMPOSE_FILE" up -d
+  tools_compose up -d
   success "Tooling stack ready."
   echo ""
-  echo -e "  ${CYAN}Adminer${NC}      →  http://localhost:${ADMINER_HOST_PORT:-8081}"
-  echo -e "  ${CYAN}Portainer${NC}    →  http://localhost:${PORTAINER_HTTP_PORT:-9000} or https://localhost:${PORTAINER_HTTPS_PORT:-9443}"
+  echo -e "  ${CYAN}Adminer${NC}      →  http://localhost:$(config_service_published_port "$TOOLS_CONFIG" adminer 8080)"
+  echo -e "  ${CYAN}Portainer${NC}    →  http://localhost:$(config_service_published_port "$TOOLS_CONFIG" portainer 9000) or https://localhost:$(config_service_published_port "$TOOLS_CONFIG" portainer 9443)"
   echo ""
 }
 
 stop_stack() {
   ensure_prereqs
   info "Stopping core shared infra stack..."
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" down
+  core_compose down
   success "Core shared infra stack stopped."
 }
 
 stop_tools_stack() {
   ensure_prereqs
   info "Stopping optional tooling stack..."
-  docker compose --env-file "$ENV_FILE" -f "$TOOLS_COMPOSE_FILE" down
+  tools_compose down
   success "Optional tooling stack stopped."
 }
 

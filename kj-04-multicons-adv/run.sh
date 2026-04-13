@@ -32,38 +32,90 @@ INFRA_COMPOSE_FILE="$REPO_ROOT/infra/docker-compose.yml"
 INFRA_ENV_FILE="$REPO_ROOT/infra/.env"
 WEB_APPS_COMPOSE_FILE="$REPO_ROOT/web-apps/docker-compose.yml"
 ENV_FILE="$SCRIPT_DIR/.env"
-
-if [[ -f "$INFRA_ENV_FILE" ]]; then
-  set -a
-  source "$INFRA_ENV_FILE"
-  set +a
-fi
-
-if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  source "$ENV_FILE"
-  set +a
-fi
-
-KAFKA_CONTAINER="${KAFKA_CONTAINER_NAME:-kafka-shared}"
-STACK_CONTAINERS=(
-  "${PORTAL_HUB_CONTAINER_NAME:-telemetry-portal-hub}"
-  "${STORAGE_CONSUMER_CONTAINER_NAME:-telemetry-storage-consumer}"
-  "${ALERT_CONSUMER_CONTAINER_NAME:-telemetry-alert-consumer}"
-  "${DLQ_VIEWER_CONTAINER_NAME:-telemetry-dlq-viewer}"
-  "${PRODUCER_CONTAINER_NAME:-telemetry-producer}"
-  "${CONSUMER_CONTAINER_NAME:-telemetry-consumer}"
-)
-BLOCKER_PORTS=(
-  "${PORTAL_HUB_HOST_PORT:-9500}"
-  "${PRODUCER_HOST_PORT:-9501}"
-  "${CONSUMER_HOST_PORT:-9502}"
-  "${ALERT_CONSUMER_HOST_PORT:-9503}"
-  "${STORAGE_CONSUMER_HOST_PORT:-9504}"
-  "${DLQ_VIEWER_HOST_PORT:-9505}"
-)
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "YOUR_HOST_IP")
 LEGACY_CONTAINERS=(kafka-local kafka-web kafka-streaming kafka-ui kafka-ui-web kafka-ui-streaming)
+STAGE_CONFIG=""
+INFRA_CONFIG=""
+WEB_CONFIG=""
+
+stage_compose() {
+  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+infra_compose() {
+  docker compose --env-file "$INFRA_ENV_FILE" -f "$INFRA_COMPOSE_FILE" "$@"
+}
+
+web_compose() {
+  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$WEB_APPS_COMPOSE_FILE" "$@"
+}
+
+refresh_compose_config() {
+  STAGE_CONFIG="$(stage_compose config)"
+  INFRA_CONFIG="$(infra_compose config)"
+  WEB_CONFIG="$(web_compose config)"
+}
+
+config_container_names() {
+  local config="$1"
+  awk '$1 == "container_name:" { print $2 }' <<<"$config"
+}
+
+config_published_ports() {
+  local config="$1"
+  awk '$1 == "published:" { gsub(/"/, "", $2); print $2 }' <<<"$config"
+}
+
+config_service_published_port() {
+  local config="$1"
+  local service="$2"
+  local target_port="$3"
+  awk -v svc="$service" -v wanted="$target_port" '
+    /^  [^[:space:]].*:/ {
+      current = $1
+      sub(":", "", current)
+      target = ""
+    }
+    current == svc && $1 == "target:" {
+      gsub(/"/, "", $2)
+      target = $2
+    }
+    current == svc && $1 == "published:" && target == wanted {
+      gsub(/"/, "", $2)
+      print $2
+      exit
+    }
+  ' <<<"$config"
+}
+
+config_service_environment_value() {
+  local config="$1"
+  local service="$2"
+  local key="$3"
+  awk -v svc="$service" -v wanted="$key" '
+    /^  [^[:space:]].*:/ {
+      current = $1
+      sub(":", "", current)
+      in_env = 0
+    }
+    current == svc && /^    environment:$/ {
+      in_env = 1
+      next
+    }
+    current == svc && in_env && /^    [^[:space:]].*:/ {
+      in_env = 0
+    }
+    current == svc && in_env && /^      / {
+      field = $1
+      sub(":", "", field)
+      if (field == wanted) {
+        gsub(/"/, "", $2)
+        print $2
+        exit
+      }
+    }
+  ' <<<"$config"
+}
 
 usage() {
   cat <<'EOF'
@@ -103,80 +155,92 @@ remove_container_if_present() {
 
 stop_port_blockers() {
   local port cid names
-  for port in "${BLOCKER_PORTS[@]}"; do
+  while IFS= read -r port; do
+    [[ -n "$port" ]] || continue
     while IFS= read -r cid; do
       [[ -n "$cid" ]] || continue
       names="$(docker inspect --format '{{.Name}}' "$cid" 2>/dev/null | sed 's#^/##' || true)"
       warn "Removing Docker container '$names' blocking host port $port..."
       docker rm -f "$cid" > /dev/null
     done < <(docker ps -q --filter "publish=$port")
-  done
+  done < <(
+    config_published_ports "$WEB_CONFIG"
+    config_published_ports "$STAGE_CONFIG"
+  )
 }
 
 stop_blockers() {
   ensure_prereqs
+  refresh_compose_config
   header "Stopping blockers"
-  for cname in "${STACK_CONTAINERS[@]}" "${LEGACY_CONTAINERS[@]}"; do
+  for cname in "${LEGACY_CONTAINERS[@]}"; do
     remove_container_if_present "$cname"
   done
+  while IFS= read -r cname; do
+    [[ -n "$cname" ]] || continue
+    remove_container_if_present "$cname"
+  done < <(
+    config_container_names "$WEB_CONFIG"
+    config_container_names "$STAGE_CONFIG"
+  )
   stop_port_blockers
   step "Blockers cleared."
 }
 
 show_next_steps() {
+  [[ -n "$STAGE_CONFIG" && -n "$INFRA_CONFIG" && -n "$WEB_CONFIG" ]] || refresh_compose_config
   header "Stack is up — here is what to do next"
 
   echo "  ${BOLD}Open these URLs in your browser:${RESET}"
   echo ""
-  url "  http://localhost:${PORTAL_HUB_HOST_PORT:-9500}        Portal Hub          — launch all dashboards from one page"
-  url "  http://localhost:${PRODUCER_HOST_PORT:-9501}        Producer UI         — fill the form or click Randomise & Send"
-  url "  http://localhost:${CONSUMER_HOST_PORT:-9502}        Consumer UI         — live event stream via SSE"
-  url "  http://localhost:${ALERT_CONSUMER_HOST_PORT:-9503}        Alert Consumer      — ALERT / WARNING / OK live feed"
-  url "  http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504}        Storage Consumer    — Postgres-backed event store + SSE feed"
-  url "  http://localhost:${DLQ_VIEWER_HOST_PORT:-9505}        DLQ Viewer          — inspect failed events with metadata"
-  url "  postgres://${POSTGRES_USER:-telematics}:${POSTGRES_PASSWORD:-telematics}@localhost:${POSTGRES_HOST_PORT:-55432}/${POSTGRES_DB:-telemetry}"
-  url "  http://localhost:${KAFKA_UI_HOST_PORT:-8080}        Kafka UI            — topics, partitions, consumer lag"
-  url "  http://localhost:${PORTAINER_HTTP_PORT:-9000}        Portainer           — inspect containers and volumes"
+  url "  http://localhost:$(config_service_published_port "$WEB_CONFIG" portal-hub 80)        Portal Hub          — launch all dashboards from one page"
+  url "  http://localhost:$(config_service_published_port "$STAGE_CONFIG" producer-app 9501)        Producer UI         — fill the form or click Randomise & Send"
+  url "  http://localhost:$(config_service_published_port "$STAGE_CONFIG" consumer-app 9502)        Consumer UI         — live event stream via SSE"
+  url "  http://localhost:$(config_service_published_port "$STAGE_CONFIG" alert-consumer 9503)        Alert Consumer      — ALERT / WARNING / OK live feed"
+  url "  http://localhost:$(config_service_published_port "$STAGE_CONFIG" storage-consumer 9504)        Storage Consumer    — Postgres-backed event store + SSE feed"
+  url "  http://localhost:$(config_service_published_port "$STAGE_CONFIG" dlq-viewer 9505)        DLQ Viewer          — inspect failed events with metadata"
+  url "  postgres://$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_USER):$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_PASSWORD)@localhost:$(config_service_published_port "$INFRA_CONFIG" postgres 5432)/$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_DB)"
+  url "  http://localhost:$(config_service_published_port "$INFRA_CONFIG" kafka-ui 8080)        Kafka UI            — topics, partitions, consumer lag"
   echo ""
 
   if [[ "$HOST_IP" != "YOUR_HOST_IP" && "$HOST_IP" != "127.0.0.1" ]]; then
     echo "  ${BOLD}From a remote machine, replace localhost with ${CYAN}${HOST_IP}${RESET}${BOLD}:${RESET}"
     echo ""
-    url "  http://${HOST_IP}:${PORTAL_HUB_HOST_PORT:-9500}"
-    url "  http://${HOST_IP}:${PRODUCER_HOST_PORT:-9501}"
-    url "  http://${HOST_IP}:${CONSUMER_HOST_PORT:-9502}"
-    url "  http://${HOST_IP}:${ALERT_CONSUMER_HOST_PORT:-9503}"
-    url "  http://${HOST_IP}:${STORAGE_CONSUMER_HOST_PORT:-9504}"
-    url "  http://${HOST_IP}:${DLQ_VIEWER_HOST_PORT:-9505}"
-    url "  http://${HOST_IP}:${KAFKA_UI_HOST_PORT:-8080}"
+    url "  http://${HOST_IP}:$(config_service_published_port "$WEB_CONFIG" portal-hub 80)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$STAGE_CONFIG" producer-app 9501)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$STAGE_CONFIG" consumer-app 9502)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$STAGE_CONFIG" alert-consumer 9503)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$STAGE_CONFIG" storage-consumer 9504)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$STAGE_CONFIG" dlq-viewer 9505)"
+    url "  http://${HOST_IP}:$(config_service_published_port "$INFRA_CONFIG" kafka-ui 8080)"
     echo ""
   fi
 
   header "Guided learning steps"
 
   step "${BOLD}Step 1 — Send events${RESET}"
-  note "Open http://localhost:${PORTAL_HUB_HOST_PORT:-9500} to launch any portal, then go to Producer UI on http://localhost:${PRODUCER_HOST_PORT:-9501} and click 'Randomise & Send' 5-10 times."
+  note "Open http://localhost:$(config_service_published_port "$WEB_CONFIG" portal-hub 80) to launch any portal, then go to Producer UI on http://localhost:$(config_service_published_port "$STAGE_CONFIG" producer-app 9501) and click 'Randomise & Send' 5-10 times."
   echo ""
 
   step "${BOLD}Step 2 — Watch the live stream${RESET}"
-  note "Open http://localhost:${CONSUMER_HOST_PORT:-9502} — events arrive in real time via SSE."
+  note "Open http://localhost:$(config_service_published_port "$STAGE_CONFIG" consumer-app 9502) — events arrive in real time via SSE."
   echo ""
 
   step "${BOLD}Step 3 — Inspect the event store${RESET}"
-  note "Open http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504} — the table shows the latest event per vehicle sourced from Postgres."
+  note "Open http://localhost:$(config_service_published_port "$STAGE_CONFIG" storage-consumer 9504) — the table shows the latest event per vehicle sourced from Postgres."
   note "The live feed panel shows STORED (green) or DLQ (red) per record."
-  note "Query the raw sink with: psql postgres://${POSTGRES_USER:-telematics}:${POSTGRES_PASSWORD:-telematics}@localhost:${POSTGRES_HOST_PORT:-55432}/${POSTGRES_DB:-telemetry} -c 'select count(*) from telemetry_events;'"
+  note "Query the raw sink with: psql postgres://$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_USER):$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_PASSWORD)@localhost:$(config_service_published_port "$INFRA_CONFIG" postgres 5432)/$(config_service_environment_value "$INFRA_CONFIG" postgres POSTGRES_DB) -c 'select count(*) from telemetry_events;'"
   echo ""
 
   step "${BOLD}Step 4 — Watch alert classification${RESET}"
-  note "Open http://localhost:${ALERT_CONSUMER_HOST_PORT:-9503} — each event is tagged ALERT / WARNING / OK."
+  note "Open http://localhost:$(config_service_published_port "$STAGE_CONFIG" alert-consumer 9503) — each event is tagged ALERT / WARNING / OK."
   note "Thresholds: speed > 100 km/h -> ALERT, fuelLevel < 20 % -> WARNING."
   echo ""
 
   step "${BOLD}Step 5 — Trigger a DLQ event${RESET}"
   note "On the producer form, set speed above 120 km/h and send."
-  note "Check http://localhost:${STORAGE_CONSUMER_HOST_PORT:-9504} feed — that event should show DLQ (red)."
-  note "Open http://localhost:${DLQ_VIEWER_HOST_PORT:-9505} to inspect the failed record's original event, error reason, timestamp, partition, and offset."
+  note "Check http://localhost:$(config_service_published_port "$STAGE_CONFIG" storage-consumer 9504) feed — that event should show DLQ (red)."
+  note "Open http://localhost:$(config_service_published_port "$STAGE_CONFIG" dlq-viewer 9505) to inspect the failed record's original event, error reason, timestamp, partition, and offset."
   echo ""
 
   step "${BOLD}Step 6 — Observe fan-out (same message, two groups)${RESET}"
@@ -198,8 +262,8 @@ show_next_steps() {
   header "Useful commands"
 
   echo "  Tail logs from one service:"
-  echo "    docker compose -f \"$COMPOSE_FILE\" logs -f storage-consumer"
-  echo "    docker compose -f \"$COMPOSE_FILE\" logs -f alert-consumer"
+  echo "    docker compose --env-file \"$ENV_FILE\" --env-file \"$INFRA_ENV_FILE\" -f \"$COMPOSE_FILE\" logs -f storage-consumer"
+  echo "    docker compose --env-file \"$ENV_FILE\" --env-file \"$INFRA_ENV_FILE\" -f \"$COMPOSE_FILE\" logs -f alert-consumer"
   echo ""
   echo "  Stop the stack:"
   echo "    ./run.sh --stop"
@@ -211,6 +275,7 @@ start_stack() {
   local detach="${2:-}"
 
   ensure_prereqs
+  refresh_compose_config
 
   header "Pre-flight checks"
   step "Docker OK"
@@ -232,7 +297,8 @@ start_stack() {
       docker rm -f "$cname" > /dev/null
     fi
   done
-  for cname in "${STACK_CONTAINERS[@]}"; do
+  while IFS= read -r cname; do
+    [[ -n "$cname" ]] || continue
     if docker inspect "$cname" > /dev/null 2>&1; then
       proj=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$cname" 2>/dev/null || true)
       if [[ "$proj" != "$SCRIPT_DIR" ]]; then
@@ -240,13 +306,16 @@ start_stack() {
         docker rm -f "$cname" > /dev/null
       fi
     fi
-  done
+  done < <(
+    config_container_names "$WEB_CONFIG"
+    config_container_names "$STAGE_CONFIG"
+  )
 
-  docker compose --env-file "$INFRA_ENV_FILE" -f "$INFRA_COMPOSE_FILE" up -d
-  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$WEB_APPS_COMPOSE_FILE" up -d --build
+  infra_compose up -d
+  web_compose up -d --build
 
   local retries=45
-  until docker exec "$KAFKA_CONTAINER" \
+  until infra_compose exec -T kafka \
           /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:29092 \
           > /dev/null 2>&1; do
     retries=$((retries - 1))
@@ -254,13 +323,13 @@ start_stack() {
     sleep 1
   done
 
-  SLOW_MODE="$slow_mode" docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$COMPOSE_FILE" up --build $detach
+  SLOW_MODE="$slow_mode" stage_compose up --build $detach
 }
 
 stop_stack() {
   ensure_prereqs
   header "Stopping stack"
-  docker compose --env-file "$ENV_FILE" --env-file "$INFRA_ENV_FILE" -f "$COMPOSE_FILE" down
+  stage_compose down
   step "Project stack stopped."
 }
 

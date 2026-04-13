@@ -12,6 +12,8 @@ Bootstrap it from the committed template before first run:
 cp .env.template .env
 ```
 
+Docker Compose reads this file for variable interpolation.
+
 Use that file to change:
 
 - container names

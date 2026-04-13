@@ -147,7 +147,7 @@ cp ../infra/.env.template ../infra/.env
 cp .env.template .env
 ```
 
-The helper script loads both files so you can change ports and names without editing Compose YAML or shell logic.
+Docker Compose reads both files for variable interpolation, so you can change ports and names without editing Compose YAML.
 
 ### Option A — Docker Compose (recommended)
 
