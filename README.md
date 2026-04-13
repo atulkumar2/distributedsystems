@@ -77,8 +77,8 @@ The shared infra owns the common Kafka and tooling ports. Stage stacks add only 
 so multiple stages can share the same broker if their app ports do not collide.
 
 | Stack | Kafka broker | Kafka UI | Portainer | App UIs |
-| --- | --- | --- | --- |
-| `infra` | `9092` | `8080` / `8081` | `9000` / `9443` | Postgres `5432` |
+| --- | --- | --- | --- | --- |
+| `infra` | `9092` | `8080` | `9000` / `9443` | Postgres `55432`, Adminer `8081` |
 | `kj-01-cli-base` | shared | shared | shared | — |
 | `kj-02-web` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502` |
 | `kj-03-multicons-base` | shared | shared | shared | hub `9500`, producer `9501`, consumer `9502`, alert `9503`, storage `9504` |
