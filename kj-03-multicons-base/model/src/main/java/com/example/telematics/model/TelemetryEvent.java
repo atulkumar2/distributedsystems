@@ -74,10 +74,10 @@ public class TelemetryEvent {
         TelemetryEvent event = new TelemetryEvent(
             vehicleIds.get(r.nextInt(vehicleIds.size())),
             Instant.now().toString(),
-            12.90 + r.nextDouble() * 0.20,   // Bangalore-ish latitude
-            77.50 + r.nextDouble() * 0.20,
-            r.nextDouble() * 140,             // intentionally sometimes > 120 to trigger DLQ
-            r.nextDouble() * 100,             // fuel 0–100
+            round6(12.90 + r.nextDouble() * 0.20),   // Bangalore-ish latitude
+            round6(77.50 + r.nextDouble() * 0.20),
+            round1(r.nextDouble() * 140),             // intentionally sometimes > 120 to trigger DLQ
+            round1(r.nextDouble() * 100),             // fuel 0–100
             statuses[r.nextInt(statuses.length)]
         );
         event.ensureEventId();
@@ -115,4 +115,7 @@ public class TelemetryEvent {
             eventId = UUID.randomUUID().toString();
         }
     }
+
+    private static double round1(double v) { return Math.round(v * 10d) / 10d; }
+    private static double round6(double v) { return Math.round(v * 1_000_000d) / 1_000_000d; }
 }
